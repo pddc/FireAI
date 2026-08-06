@@ -502,14 +502,15 @@ def _work_cycle(mode, grill_platform, probe_complex, display_device, dist_device
 		write_control(control, direct_write=True, origin='control')
 	# Check if the temperature of the grill dropped below the startuptemp
 	elif mode in ('Smoke', 'Hold'):
-		if control['safety']['afterstarttemp'] < control['safety']['startuptemp']:
+		error_grill_temp = control['safety']['afterstarttemp']
+		if error_grill_temp < control['safety']['startuptemp']:
 			if control['safety']['reigniteretries'] == 0:
 				status = 'Inactive'
 				display_device.display_text('ERROR')
 				control['mode'] = 'Error'
 				control['updated'] = True
 				write_control(control, direct_write=True, origin='control')
-				send_notifications("Grill_Error_02")
+				send_notifications("Grill_Error_02", error_grill_temp=error_grill_temp)
 			else:
 				control['safety']['reigniteretries'] -= 1
 				control['safety']['reignitelaststate'] = mode
@@ -518,7 +519,7 @@ def _work_cycle(mode, grill_platform, probe_complex, display_device, dist_device
 				control['mode'] = 'Reignite'
 				control['updated'] = True
 				write_control(control, direct_write=True, origin='control')
-				send_notifications("Grill_Error_03")
+				send_notifications("Grill_Error_03", error_grill_temp=error_grill_temp)
 
 	# Apply Smart Start Settings if Enabled 
 	startup_timer = settings['startup']['duration']
@@ -881,7 +882,7 @@ def _work_cycle(mode, grill_platform, probe_complex, display_device, dist_device
 					control['mode'] = 'Error'
 					control['updated'] = True
 					write_control(control, direct_write=True, origin='control')
-					send_notifications("Grill_Error_02")
+					send_notifications("Grill_Error_02", error_grill_temp=ptemp)
 					break
 				else:
 					control['safety']['reigniteretries'] -= 1
@@ -890,7 +891,7 @@ def _work_cycle(mode, grill_platform, probe_complex, display_device, dist_device
 					control['mode'] = 'Reignite'
 					control['updated'] = True
 					write_control(control, direct_write=True, origin='control')
-					send_notifications("Grill_Error_03")
+					send_notifications("Grill_Error_03", error_grill_temp=ptemp)
 					break
 
 
@@ -1083,7 +1084,7 @@ def _work_cycle(mode, grill_platform, probe_complex, display_device, dist_device
 			control['mode'] = 'Error'
 			control['updated'] = True
 			write_control(control, direct_write=True, origin='control')
-			send_notifications("Grill_Error_01")
+			send_notifications("Grill_Error_01", error_grill_temp=ptemp)
 			break
 
 		# End of Loop Recipe Check
