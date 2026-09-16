@@ -36,7 +36,7 @@ from common import common
 from core import commands as cmdreg
 from core import state as core_state
 from core.settings_schema import redact
-from server import auth, cloud
+from server import auth, cloud, probes
 from server.deps import current_principal, require_admin
 
 API_PREFIX = '/api/v1'
@@ -149,6 +149,7 @@ def create_app(*, hub: StateHub | None = None) -> FastAPI:
 	app = FastAPI(title='FireAI Local API', version='2.0.0a0', lifespan=lifespan, docs_url='/docs', openapi_url='/openapi.json')
 	app.state.hub = hub
 	app.include_router(cloud.router)
+	app.include_router(probes.router)
 	app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
 					   allow_methods=['*'], allow_headers=['*'])
 
