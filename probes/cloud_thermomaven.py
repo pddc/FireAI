@@ -192,6 +192,7 @@ class ThermoMavenDevice:
 		self.device_model = None
 		self.device_battery = None
 		self.rssi = None
+		self.device_online: bool | None = None  # None until the cloud has told us
 		self.connected = False
 		self.last_error = None
 		self.last_report = 0.0
@@ -340,17 +341,27 @@ class ThermoMavenDevice:
 		if cmd_type == 'user:device:list':
 			self._devices = cmd_data.get('devices', []) or []
 			self._subscribe_device_topics(self._devices)
+			# The list carries each device's last status report: seed our state from it so
+			# an offline thermometer is reported as such instead of "no data yet".
+			for device in self._devices:
+				last = device.get('lastStatusCmd') if self._device_matches(device) else None
+				if isinstance(last, dict) and 'status:report' in str(last.get('cmdType', '')):
+					self._apply_report(last.get('cmdData') or {}, at=(last.get('serverTime') or 0) / 1000 or None)
 			return
 		if 'status:report' not in cmd_type:
 			return
 		device_id = data.get('deviceId') or cmd_data.get('deviceId') or self.device_id_from_topic(topic)
 		if self.device_id and device_id and str(device_id) != self.device_id:
 			return
-		now = time.time()
+		self._apply_report(cmd_data)
+
+	def _apply_report(self, cmd_data: dict, at: float | None = None) -> None:
+		now = at or time.time()
 		with self._lock:
 			self.device_battery = cmd_data.get('batteryValue', self.device_battery)
 			self.rssi = cmd_data.get('rssi', self.rssi)
 			online = cmd_data.get('globalStatus', 'online') == 'online'
+			self.device_online = online
 			for index, probe in enumerate(cmd_data.get('probes', []) or []):
 				self.readings[index] = {
 					'meat_f': self._tenths(probe.get('curTemperature')) if online else None,
@@ -359,7 +370,7 @@ class ThermoMavenDevice:
 					'battery': probe.get('batteryValue'),
 					'updated': now,
 				}
-			self.last_report = now
+			self.last_report = max(self.last_report, now)
 
 	@staticmethod
 	def _tenths(value):
@@ -389,9 +400,14 @@ class ThermoMavenDevice:
 	def get_status(self) -> dict:
 		with self._lock:
 			batteries = [r.get('battery') for r in self.readings.values() if r.get('battery') is not None]
+		error = self.last_error
+		if error is None and self.connected and self.device_online is False:
+			error = 'Thermometer is offline (base station off or not on WiFi)'
 		return {
-			'connected': self.connected,
-			'error': self.last_error,
+			'connected': self.connected and self.device_online is not False,
+			'cloud_connected': self.connected,
+			'device_online': self.device_online,
+			'error': error,
 			'battery_percentage': batteries[0] if batteries else self.device_battery,
 			'battery_charging': False,
 			'device_model': self.device_model,

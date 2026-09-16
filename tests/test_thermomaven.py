@@ -192,3 +192,24 @@ class TestReadProbes:
 		rp = self.make()
 		info = rp.get_device_info()
 		assert info['status']['connected'] is False
+
+
+class TestDeviceListSeeding:
+	def test_last_status_in_device_list_marks_offline(self, clock):
+		d = device()
+		d.connected = True
+		d.handle_message('app/user/1/sub', json.dumps({'cmdType': 'user:device:list', 'cmdData': {'devices': [{
+			'deviceId': '123', 'deviceModel': 'WT10', 'subTopics': ['device/WT10/123/pub'],
+			'lastStatusCmd': {'cmdType': 'WT10:status:report', 'cmdData': {'globalStatus': 'offline'}, 'serverTime': int(clock.time() * 1000)},
+		}]}}))
+		st = d.get_status()
+		assert st['device_online'] is False and st['connected'] is False and st['cloud_connected'] is True
+		assert 'offline' in st['error']
+
+	def test_last_status_online_seeds_readings(self, clock):
+		d = device()
+		d.handle_message('app/user/1/sub', json.dumps({'cmdType': 'user:device:list', 'cmdData': {'devices': [{
+			'deviceId': '123', 'deviceModel': 'WT10',
+			'lastStatusCmd': {'cmdType': 'WT10:status:report', 'cmdData': {'globalStatus': 'online', 'probes': [{'curTemperature': 1800, 'curAmbientTemperature': 2300}]}, 'serverTime': int(clock.time() * 1000)},
+		}]}}))
+		assert d.get_port_values_f()['P1_MEAT'] == 180.0 and d.get_status()['device_online'] is True
