@@ -13,6 +13,7 @@ import { fmtDuration } from '@/lib/format'
 import { SettingsSectionInline } from './SettingsSectionInline'
 import { ApiKeysCard } from './ApiKeysCard'
 import { MaintenanceCard } from './MaintenanceCard'
+import { NetworkCard, type NetworkInfo } from './NetworkCard'
 
 interface UpdateCheck {
   current: string
@@ -79,6 +80,8 @@ interface SystemInfo {
   modules: Record<string, string>
   board: string | null
   system: { python?: string; platform?: string; cpu_percent?: number; memory_percent?: number; disk_percent?: number; uptime_s?: number }
+  network?: NetworkInfo
+  gpio?: { group: string; name: string; pin: string | number | null }[]
 }
 
 export function SystemPage() {
@@ -137,6 +140,27 @@ export function SystemPage() {
           <Info label="Uptime" value={s.uptime_s != null ? fmtDuration(s.uptime_s) : '—'} />
         </CardContent>
       </Card>
+
+      <NetworkCard net={info.data?.network} />
+
+      {!!info.data?.gpio?.length && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">GPIO summary</CardTitle>
+            <CardDescription>Pins as configured for the {info.data.board ?? 'current'} board. Change them under Settings → Hardware.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+              {info.data.gpio.map((g) => (
+                <div key={`${g.group}.${g.name}`} className="flex justify-between border-b border-border/50 py-1">
+                  <span className="truncate text-muted-foreground">{g.group === 'devices' ? '' : `${g.group.replace(/s$/, '')} · `}{g.name}</span>
+                  <span className="font-mono text-xs">{g.pin == null || g.pin === '' ? '—' : `GPIO ${g.pin}`}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <SettingsSectionInline sectionId="system" />
 

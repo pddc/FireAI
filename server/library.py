@@ -414,7 +414,8 @@ def system_info(_: auth.Principal = Depends(current_principal)):
 		}
 	except Exception:
 		info = {}
-	return {'version': s['versions'], 'modules': s['modules'], 'board': s.get('platform', {}).get('current'), 'system': info}
+	return {'version': s['versions'], 'modules': s['modules'], 'board': s.get('platform', {}).get('current'), 'system': info,
+			'network': library.network_info(), 'gpio': library.gpio_summary(s)}
 
 
 @router.delete('/system/data/{what}')

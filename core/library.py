@@ -610,6 +610,55 @@ def tail_log(name: str, lines: int = 200) -> list[str]:
 
 
 # --------------------------------------------------------------------------
+# System info (PiFire's Admin → System Info / GPIO summary)
+# --------------------------------------------------------------------------
+
+
+def network_info() -> dict:
+	"""Hostname, IPv4 addresses per interface and WiFi link quality (Linux /proc/net/wireless; None elsewhere)."""
+	import socket
+
+	out: dict = {'hostname': socket.gethostname(), 'interfaces': [], 'wifi': None}
+	try:
+		import psutil
+
+		stats = psutil.net_if_stats()
+		for name, addrs in psutil.net_if_addrs().items():
+			if name.startswith(('lo', 'docker', 'veth', 'br-')):
+				continue
+			ips = [a.address for a in addrs if a.family == socket.AF_INET]
+			if ips:
+				out['interfaces'].append({'name': name, 'ip': ips[0], 'up': stats.get(name).isup if name in stats else None})
+	except Exception:  # noqa: BLE001 - psutil missing or odd platform: leave the list empty
+		pass
+	try:
+		with open('/proc/net/wireless', encoding='utf-8') as f:
+			for line in f.read().splitlines()[2:]:
+				parts = line.replace(':', ' ').split()
+				if len(parts) >= 4:
+					quality, level = float(parts[2]), float(parts[3])
+					out['wifi'] = {'interface': parts[0], 'quality_percent': round(quality / 70 * 100) if quality <= 70 else None, 'signal_dbm': int(level)}
+					break
+	except OSError:
+		pass
+	return out
+
+
+def gpio_summary(settings: dict) -> list[dict]:
+	"""Every configured pin: outputs (relays, fan), inputs (buttons, encoder) and device pins (displays, sensors)."""
+	platform = settings.get('platform', {})
+	rows = []
+	for group in ('outputs', 'inputs', 'devices'):
+		for name, pin in (platform.get(group) or {}).items():
+			if isinstance(pin, dict):
+				for sub, p in pin.items():
+					rows.append({'group': group, 'name': f'{name}.{sub}', 'pin': p})
+			else:
+				rows.append({'group': group, 'name': name, 'pin': pin})
+	return rows
+
+
+# --------------------------------------------------------------------------
 # Maintenance (PiFire's Admin → data management)
 # --------------------------------------------------------------------------
 

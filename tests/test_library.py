@@ -446,3 +446,11 @@ def test_recipe_comments_and_rating(settings, control):
 		cid = r.json()['comments'][-1]['id']
 		assert len(c.delete(f'/api/v1/recipes/{name}/comments/{cid}', headers=h).json()['comments']) == 1
 	library.delete_recipe(name)
+
+
+def test_network_and_gpio_summary(settings):
+	net = library.network_info()
+	assert net['hostname'] and isinstance(net['interfaces'], list)
+	rows = library.gpio_summary(common.read_settings())
+	assert any(r['group'] == 'outputs' and r['name'] == 'auger' for r in rows)
+	assert all({'group', 'name', 'pin'} <= set(r) for r in rows)
