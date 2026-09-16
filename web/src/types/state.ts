@@ -136,3 +136,43 @@ export interface EventRow {
 }
 
 export type ConnectionStatus = 'connecting' | 'live' | 'offline'
+
+export interface CookSummary {
+  id: string
+  /** Local: .pifire filename. Cloud: Firestore doc id. */
+  filename?: string
+  title: string
+  starttime: number | null
+  endtime: number | null
+  units?: Units
+  thumbnail?: string
+  status?: string
+  size?: number
+  error?: string
+}
+
+export interface CookAsset {
+  id: string
+  filename: string
+  type: string
+}
+
+export interface CookComment {
+  id: string
+  text: string
+  date: string
+  time: string
+  edited?: string
+  assets?: string[]
+}
+
+export interface CookDoc {
+  id: string
+  filename?: string
+  metadata: { title?: string; starttime?: number; endtime?: number; units?: Units; thumbnail?: string; id?: string; version?: string; notes?: string }
+  rows: HistoryRow[]
+  labels?: { probes?: Record<string, string>; primarysp?: Record<string, string> }
+  events: unknown[]
+  comments: CookComment[]
+  assets: CookAsset[]
+}

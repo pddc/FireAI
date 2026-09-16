@@ -3,7 +3,6 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, typ
 import { Loader2 } from 'lucide-react'
 import { AppShell } from './layout/AppShell'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
-import { PlaceholderPage } from '@/features/PlaceholderPage'
 import { LoginPage, SetupPage } from '@/features/auth/AuthPages'
 import { SettingsIndexPage } from '@/features/settings/SettingsIndexPage'
 import { SettingsSectionPage } from '@/features/settings/SettingsSectionPage'
@@ -14,6 +13,11 @@ import { IS_CLOUD } from '@/lib/mode'
 
 const GraphPage = lazy(() => import('@/features/graph/GraphPage').then((m) => ({ default: m.GraphPage })))
 const ProbesPage = lazy(() => import('@/features/settings/ProbesPage').then((m) => ({ default: m.ProbesPage })))
+const CooksPage = lazy(() => import('@/features/cooks/CooksPage').then((m) => ({ default: m.CooksPage })))
+const CookDetailPage = lazy(() => import('@/features/cooks/CookDetailPage').then((m) => ({ default: m.CookDetailPage })))
+const PelletsPage = lazy(() => import('@/features/pellets/PelletsPage').then((m) => ({ default: m.PelletsPage })))
+const EventsPage = lazy(() => import('@/features/settings/EventsPage').then((m) => ({ default: m.EventsPage })))
+const SystemPage = lazy(() => import('@/features/settings/SystemPage').then((m) => ({ default: m.SystemPage })))
 const CloudPage = lazy(() => import('@/features/settings/CloudPage').then((m) => ({ default: m.CloudPage })))
 const cloudPage = (name: 'SignInPage' | 'GrillsPage' | 'PairPage' | 'CloudGrillGate' | 'CloudAuthGate') =>
   lazy(() => import('@/features/cloud/CloudPages').then((m) => ({ default: m[name] })))
@@ -60,9 +64,16 @@ function LocalAuthGate() {
 const shellChildren: RouteObject[] = [
   { index: true, element: <DashboardPage /> },
   { path: 'graph', element: lazyEl(<GraphPage />) },
-  { path: 'cooks', element: <PlaceholderPage title="Cooks" /> },
+  { path: 'cooks', element: lazyEl(<CooksPage />) },
+  { path: 'cooks/:cookId', element: lazyEl(<CookDetailPage />) },
   { path: 'settings', element: <SettingsIndexPage /> },
-  ...(IS_CLOUD ? [] : [{ path: 'settings/cloud', element: lazyEl(<CloudPage />) }, { path: 'settings/probes', element: lazyEl(<ProbesPage />) }]),
+  { path: 'settings/pellets-manager', element: lazyEl(<PelletsPage />) },
+  { path: 'settings/events', element: lazyEl(<EventsPage />) },
+  ...(IS_CLOUD ? [] : [
+    { path: 'settings/cloud', element: lazyEl(<CloudPage />) },
+    { path: 'settings/probes', element: lazyEl(<ProbesPage />) },
+    { path: 'settings/system', element: lazyEl(<SystemPage />) },
+  ]),
   { path: 'settings/:section', element: <SettingsSectionPage /> },
 ]
 

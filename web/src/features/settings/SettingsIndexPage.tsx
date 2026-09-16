@@ -1,16 +1,18 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench } from 'lucide-react'
+import { ChevronRight, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText } from 'lucide-react'
 import { IS_CLOUD } from '@/lib/mode'
 
 const SECTIONS = [
   { to: 'cloud', label: 'Cloud', desc: 'Pairing, remote control, monitoring', icon: Cloud, localOnly: true },
   { to: 'general', label: 'General', desc: 'Name, units, theme, dashboard', icon: Wrench },
   { to: 'control', label: 'Control', desc: 'Startup, smoke, hold, shutdown, PID', icon: Gauge },
-  { to: 'pellets', label: 'Pellet level', desc: 'Hopper sensor, low-pellet warnings', icon: Thermometer },
+  { to: 'pellets-manager', label: 'Pellets', desc: 'Hopper contents, profiles, load history', icon: Package },
+  { to: 'pellets', label: 'Pellet level sensor', desc: 'Calibration, low-pellet warnings', icon: Package },
   { to: 'probes', label: 'Probes', desc: 'Devices, ports, profiles', icon: Thermometer, localOnly: true },
   { to: 'notifications', label: 'Notifications', desc: 'Pushover, Apprise, MQTT, WLED…', icon: Bell },
   { to: 'safety', label: 'Safety', desc: 'Limits, re-ignite, manual overrides', icon: Shield },
-  { to: 'system', label: 'System', desc: 'Hardware, updates, backup, restart', icon: Cpu, localOnly: true },
+  { to: 'events', label: 'Events & logs', desc: 'What happened, when', icon: ScrollText },
+  { to: 'system', label: 'System', desc: 'Hardware, backup, restart, power', icon: Cpu, localOnly: true },
 ]
 
 export function SettingsIndexPage() {

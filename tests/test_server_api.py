@@ -197,3 +197,9 @@ class TestCloud:
 		assert authed.post('/api/v1/cloud/pair').status_code == 409
 		assert authed.post('/api/v1/cloud/unpair').status_code == 200
 		assert not path.exists()
+
+
+def test_query_token_is_accepted_for_asset_style_requests(authed):
+	token = authed.headers.pop('Authorization').split()[1]
+	assert authed.get('/api/v1/state').status_code == 401
+	assert authed.get(f'/api/v1/state?token={token}').status_code == 200
