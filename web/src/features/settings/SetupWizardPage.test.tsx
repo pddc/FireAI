@@ -18,7 +18,7 @@ function mount() {
 
 describe('SetupWizardPage', () => {
   it('walks board → display → sensor → probes → review and PUTs the hardware selection', async () => {
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => ({
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify(init?.method === 'PUT' ? { restart_required: true, reboot_required: false } : catalogue),
