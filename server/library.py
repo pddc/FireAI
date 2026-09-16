@@ -242,3 +242,35 @@ def system_info(_: auth.Principal = Depends(current_principal)):
 	except Exception:
 		info = {}
 	return {'version': s['versions'], 'modules': s['modules'], 'board': s.get('platform', {}).get('current'), 'system': info}
+
+
+# ----- updates -----------------------------------------------------------
+
+
+@router.get('/system/update/check')
+def update_check(_: auth.Principal = Depends(current_principal)):
+	from core import updater
+
+	try:
+		return updater.check()
+	except Exception as e:
+		raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail={'code': 'update_check_failed', 'message': str(e)})
+
+
+@router.post('/system/update/apply', status_code=status.HTTP_202_ACCEPTED)
+def update_apply(_: auth.Principal = Depends(require_admin)):
+	from core import updater
+
+	control = common.read_control()
+	if control.get('mode') not in ('Stop', 'Error', None):
+		raise _bad('Stop the grill before updating.')
+	if not updater.start_update():
+		raise HTTPException(status.HTTP_409_CONFLICT, detail={'code': 'busy', 'message': 'An update is already running.'})
+	return updater.status()
+
+
+@router.get('/system/update/status')
+def update_status(_: auth.Principal = Depends(current_principal)):
+	from core import updater
+
+	return updater.status()

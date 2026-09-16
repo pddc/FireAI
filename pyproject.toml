@@ -1,6 +1,6 @@
 [project]
 name = "fireai"
-version = "2.0.0a0"
+version = "2.0.0"
 description = "FireAI - cloud-connected pellet smoker controller (hard fork of PiFire)"
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,14 +19,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Legacy Flask UI (removed at Phase 5)
-legacy = [
-    "flask>=3.1",
-    "flask_mobility>=2.0",
-    "flask_qrcode>=3.2",
-    "flask_socketio>=5.5",
-    "gunicorn>=23.0",
-]
 # New local API server
 server = [
     "fastapi>=0.115",
@@ -72,7 +64,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["static", "gh-pages", "docs", "display", "blueprints", "wizard.py", "updater.py", "board-config.py", "bt_diag.py"]
+extend-exclude = ["static", "docs", "display", "board-config.py", "bt_diag.py", "web", "firebase"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

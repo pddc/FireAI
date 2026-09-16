@@ -1,0 +1,90 @@
+name: Release
+
+# Tag a commit `vX.Y.Z` to publish a release tarball that deploy/install.sh
+# and the in-app updater consume. The tarball contains the Python code and
+# the prebuilt web app (web/dist) so the Pi never needs Node.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web
+        working-directory: web
+        env:
+          VITE_FIREAI_MODE: local
+        run: |
+          npm ci
+          npm run build
+      - name: Stamp version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          python3 - "$VERSION" <<'PY'
+          import json, sys, re
+          v = sys.argv[1]
+          p = 'updater/updater_manifest.json'
+          m = json.load(open(p)); m['metadata']['versions']['server'] = v; m['metadata']['versions']['build'] = int(__import__('os').environ.get('GITHUB_RUN_NUMBER', '0'))
+          json.dump(m, open(p, 'w'), indent=2)
+          s = open('pyproject.toml').read(); s = re.sub(r'^version = ".*"$', f'version = "{v}"', s, flags=re.M); open('pyproject.toml', 'w').write(s)
+          PY
+      - name: Package
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          NAME=fireai-$VERSION
+          mkdir -p dist/$NAME
+          rsync -a --exclude '.git' --exclude 'web/node_modules' --exclude 'web/src' --exclude 'web/e2e' --exclude 'web/test-results' \
+            --exclude 'firebase/functions/node_modules' --exclude 'firebase/rules-tests/node_modules' \
+            --exclude '.venv' --exclude 'tests' --exclude '.sim*' --exclude '__pycache__' ./ dist/$NAME/
+          tar -czf dist/$NAME.tar.gz -C dist $NAME
+          (cd dist && sha256sum $NAME.tar.gz > $NAME.tar.gz.sha256)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/fireai-*.tar.gz
+            dist/fireai-*.tar.gz.sha256
+          generate_release_notes: true
+
+  hosting:
+    # Deploys the cloud-mode app to Firebase Hosting when the project secrets are configured.
+    runs-on: ubuntu-latest
+    if: ${{ vars.FIREBASE_PROJECT_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build web (cloud mode)
+        working-directory: web
+        env:
+          VITE_FIREAI_MODE: cloud
+          VITE_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_DATABASE_URL: ${{ vars.FIREBASE_DATABASE_URL }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          VITE_FIREBASE_VAPID_KEY: ${{ vars.FIREBASE_VAPID_KEY }}
+        run: |
+          npm ci
+          npm run build
+      - name: Deploy functions, rules and hosting
+        working-directory: firebase
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$GOOGLE_APPLICATION_CREDENTIALS"
+          (cd functions && npm ci && npm run build)
+          npx firebase-tools deploy --project "${{ vars.FIREBASE_PROJECT_ID }}" --only hosting,functions,firestore:rules,database,storage --non-interactive

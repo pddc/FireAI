@@ -17,7 +17,6 @@ import json
 import zipfile
 import pathlib
 
-from flask import current_app
 from common import read_settings, generate_uuid, convert_temp
 from file_mgmt.common import read_json_file_data
 from file_mgmt.media import unpack_thumb

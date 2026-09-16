@@ -1,16 +1,76 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, Loader2, Power, RefreshCw, RotateCcw, Upload, Cpu } from 'lucide-react'
+import { Download, Loader2, Power, RefreshCw, RotateCcw, Upload, Cpu, ArrowUpCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { API_BASE, get } from '@/lib/api'
+import { API_BASE, get, post } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { useCommand } from '@/hooks/useCommand'
 import { useGrillState } from '@/stores/grill'
 import { fmtDuration } from '@/lib/format'
 import { SettingsSectionInline } from './SettingsSectionInline'
+
+interface UpdateCheck {
+  current: string
+  latest: string
+  update_available: boolean
+  release: { tag: string; name: string; notes: string; published_at: string | null; size: number | null }
+}
+interface UpdateStatus {
+  percent: number
+  status: string
+  message: string
+  error: string | null
+}
+
+function UpdateCard({ cooking }: { cooking: boolean }) {
+  const check = useQuery({ queryKey: ['update-check'], queryFn: () => get<UpdateCheck>('/api/v1/system/update/check'), retry: false, staleTime: 5 * 60_000 })
+  const status = useQuery({
+    queryKey: ['update-status'],
+    queryFn: () => get<UpdateStatus>('/api/v1/system/update/status'),
+    refetchInterval: (q) => (['checking', 'downloading', 'extracting', 'installing'].includes(q.state.data?.status ?? '') ? 2000 : false),
+  })
+  const apply = useMutation({
+    mutationFn: () => post<UpdateStatus>('/api/v1/system/update/apply'),
+    onSuccess: () => status.refetch(),
+    onError: (e) => toast.error((e as Error).message),
+  })
+  const running = ['checking', 'downloading', 'extracting', 'installing'].includes(status.data?.status ?? '')
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base"><ArrowUpCircle className="size-4" /> Software update</CardTitle>
+        <CardDescription>
+          {check.isLoading && 'Checking for updates…'}
+          {check.isError && 'Could not check for updates (offline, or no release repository configured).'}
+          {check.data && !check.data.update_available && `You are on ${check.data.current}, the latest release.`}
+          {check.data?.update_available && `${check.data.release.name} is available (you have ${check.data.current}).`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {check.data?.update_available && check.data.release.notes && <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-3 text-xs">{check.data.release.notes}</pre>}
+        {status.data && status.data.status !== 'idle' && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm"><span>{status.data.message}</span><span className="tabular text-muted-foreground">{status.data.percent}%</span></div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${status.data.status === 'error' ? 'bg-destructive' : 'bg-ember'}`} style={{ width: `${status.data.percent}%` }} /></div>
+            {status.data.error && <p className="text-xs text-destructive">{status.data.error}</p>}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => check.refetch()} disabled={check.isFetching}><RefreshCw className="size-4" /> Check again</Button>
+          {check.data?.update_available && (
+            <Button size="sm" onClick={() => apply.mutate()} disabled={running || cooking || apply.isPending}>
+              {running ? <Loader2 className="size-4 animate-spin" /> : <ArrowUpCircle className="size-4" />} Install {check.data.release.tag}
+            </Button>
+          )}
+        </div>
+        {cooking && check.data?.update_available && <p className="text-xs text-muted-foreground">Stop the grill before updating.</p>}
+      </CardContent>
+    </Card>
+  )
+}
 
 interface SystemInfo {
   version: { server: string; build: number }
@@ -77,6 +137,8 @@ export function SystemPage() {
       </Card>
 
       <SettingsSectionInline sectionId="system" />
+
+      <UpdateCard cooking={!!cooking} />
 
       <Card>
         <CardHeader className="pb-2">

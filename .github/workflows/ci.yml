@@ -20,7 +20,7 @@ jobs:
       - name: Install
         run: |
           uv venv .venv
-          uv pip install -e ".[dev,legacy,server,bridge]"
+          uv pip install -e ".[dev,server,bridge]"
       - name: Lint
         run: .venv/bin/ruff check core server bridge tests
       - name: Test
