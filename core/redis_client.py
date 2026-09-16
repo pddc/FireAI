@@ -12,8 +12,10 @@ is created lazily on first use and cached for the life of the process.
 """
 from __future__ import annotations
 
+import logging
 import os
 import threading
+import time
 
 import redis
 
@@ -30,6 +32,48 @@ def use_fake_redis() -> bool:
 	return os.environ.get('FIREAI_FAKE_REDIS', '') in ('1', 'true', 'yes')
 
 
+REDIS_UNAVAILABLE_WARNING = 'Redis is unavailable. Using safe fallbacks until the service recovers.'
+
+
+class ResilientRedisClient:
+	"""Best-effort wrapper (from PiFire): a Redis outage degrades to safe defaults instead of raising.
+
+	The control loop must keep the auger/fan/igniter logic running even if redis-server restarts, so every
+	command returns the value an empty store would have returned; one warning per minute is logged.
+	"""
+
+	DEFAULTS = {
+		'append': 0, 'config_set': False, 'delete': 0, 'exists': False, 'get': None, 'keys': [], 'lindex': None,
+		'llen': 0, 'lpop': None, 'lpush': 0, 'lrange': [], 'lrem': 0, 'rpop': None, 'rpush': 0, 'sadd': 0, 'set': False,
+		'smembers': set(), 'srem': 0, 'xadd': None, 'xrange': [], 'xrevrange': [], 'xlen': 0, 'xtrim': 0, 'xread': [],
+	}
+
+	def __init__(self, client: redis.Redis):
+		self._redis_client = client
+		self._logger = logging.getLogger('common.redis')
+		self._last_warning = 0.0
+
+	def _log_warning(self, operation: str, error: Exception) -> None:
+		now = time.time()
+		if now - self._last_warning >= 60:
+			self._logger.warning('%s Operation=%s Error=%s', REDIS_UNAVAILABLE_WARNING, operation, error)
+			self._last_warning = now
+
+	def __getattr__(self, name: str):
+		attribute = getattr(self._redis_client, name)
+		if not callable(attribute):
+			return attribute
+
+		def wrapped(*args, **kwargs):
+			try:
+				return attribute(*args, **kwargs)
+			except redis.exceptions.RedisError as error:
+				self._log_warning(name, error)
+				return self.DEFAULTS.get(name, None)
+
+		return wrapped
+
+
 def _make_client() -> redis.Redis:
 	if use_fake_redis():
 		global _fake_server
@@ -38,7 +82,9 @@ def _make_client() -> redis.Redis:
 		if _fake_server is None:
 			_fake_server = fakeredis.FakeServer()
 		return fakeredis.FakeStrictRedis(server=_fake_server, decode_responses=True)
-	return redis.StrictRedis.from_url(redis_url(), decode_responses=True)
+	client = redis.StrictRedis.from_url(redis_url(), decode_responses=True, socket_connect_timeout=1, socket_timeout=1,
+										health_check_interval=30)
+	return ResilientRedisClient(client)  # type: ignore[return-value]
 
 
 def get_redis() -> redis.Redis:

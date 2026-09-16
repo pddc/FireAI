@@ -26,6 +26,7 @@ import random
 import logging
 import subprocess
 import threading
+from typing import Any
 from logging.handlers import RotatingFileHandler
 from collections.abc import Mapping
 from ratelimitingfilter import RateLimitingFilter
@@ -55,6 +56,16 @@ COLOR_LIST = [
 # Setup Command / Status database connection Global 
 from core.redis_client import get_redis
 cmdsts = get_redis()
+
+
+def _decode_json_or_default(raw_value, default_value):
+	"""Decode JSON payloads and gracefully fall back on missing/invalid values."""
+	if raw_value is None:
+		return default_value
+	try:
+		return json.loads(raw_value)
+	except (TypeError, ValueError):
+		return default_value
 
 
 '''
@@ -913,7 +924,7 @@ def read_control(flush=False):
 			control = default_control()
 			write_control(control, direct_write=True, origin='common')
 		else: 
-			control = json.loads(cmdsts.get('control:general'))
+			control = _decode_json_or_default(cmdsts.get('control:general'), default_control())
 	except:
 		control = default_control()
 
@@ -948,7 +959,9 @@ def execute_control_writes():
 	status = 'OK'
 	while cmdsts.llen('control:write') > 0:
 		control = read_control()
-		command = json.loads(cmdsts.lpop('control:write'))
+		command = _decode_json_or_default(cmdsts.lpop('control:write'), {})
+		if not command:
+			continue
 		command.pop('origin')
 		control = deep_update(control, command)
 		write_control(control, direct_write=True, origin='writer')
@@ -971,7 +984,7 @@ def read_errors(flush=False):
 			errors = []
 			write_errors(errors)
 		else: 
-			errors = json.loads(cmdsts.get('errors'))
+			errors = _decode_json_or_default(cmdsts.get('errors'), [])
 	except:
 		errors = ['Unable to reach Redis database.  You may need to reinstall PiFire or enable redis-server.']
 
@@ -1041,11 +1054,11 @@ def read_metrics(all=False):
 		metrics = cmdsts.lrange('metrics:general', 0, -1)
 		metrics_list = []
 		for index in range(0, llength):
-			metrics_list.append(json.loads(metrics[index]))
+			metrics_list.append(_decode_json_or_default(metrics[index], default_metrics()))
 		return(metrics_list)
 	
 	# Read current Metrics Record (i.e. top of the list)
-	return(json.loads(cmdsts.lindex('metrics:general', -1)))
+	return(_decode_json_or_default(cmdsts.lindex('metrics:general', -1), default_metrics()))
 
 def write_metrics(metrics=default_metrics(), flush=False, new_metric=False):
 	"""
@@ -1189,7 +1202,7 @@ def read_settings_redis(init=False):
 	if not cmdsts.exists('settings:general'):
 		settings = {}
 	else:
-		settings = json.loads(cmdsts.get('settings:general'))
+		settings = _decode_json_or_default(cmdsts.get('settings:general'), {})
 
 	return(settings)
 
@@ -1511,7 +1524,7 @@ def read_pellets_redis(init=False):
 	if not cmdsts.exists('pellets:general'):
 		pelletdb = {}
 	else:
-		pelletdb = json.loads(cmdsts.get('pellets:general'))
+		pelletdb = _decode_json_or_default(cmdsts.get('pellets:general'), {})
 
 	return(pelletdb)
 
@@ -1728,7 +1741,7 @@ def read_history(num_items=0, flushhistory=False):
 			
 			''' Unpack data to list of dictionaries '''
 			for index in range(len(data)):
-				datalist.append(json.loads(data[index]))
+				datalist.append(_decode_json_or_default(data[index], {}))
 			
 	return(datalist)
 
@@ -1835,7 +1848,7 @@ def read_current(zero_out=False):
 	if not cmdsts.exists('control:current'):
 		current = {}
 	else:
-		current = json.loads(cmdsts.get('control:current'))
+		current = _decode_json_or_default(cmdsts.get('control:current'), {})
 	
 	return(current)
 
@@ -1858,7 +1871,7 @@ def read_tr():
 	if not cmdsts.exists('control:tuning'):
 		tr_data = {}
 	else: 
-		tr_data = json.loads(cmdsts.get('control:tuning'))
+		tr_data = _decode_json_or_default(cmdsts.get('control:tuning'), {})
 
 	return(tr_data)
 
@@ -1881,7 +1894,7 @@ def read_autotune(flush=False, size_only=False):
 	elif cmdsts.exists('control:autotune'):
 		autotune_data = cmdsts.lrange('control:autotune', 0, -1)
 		for datapoint in autotune_data:
-			output_data.append(json.loads(datapoint))
+			output_data.append(_decode_json_or_default(datapoint, {}))
 
 	return output_data
 
@@ -2057,7 +2070,7 @@ def load_wizard_install_info():
 	:return: wizard_install_info
 	"""
 	global cmdsts
-	wizard_install_info = json.loads(cmdsts.get('wizard:install'))
+	wizard_install_info = _decode_json_or_default(cmdsts.get('wizard:install'), {})
 	return(wizard_install_info)
 
 def store_wizard_install_info(wizard_install_info):
@@ -2283,6 +2296,38 @@ def write_status(status):
 
 	cmdsts.set('control:status', json.dumps(status))
 
+
+def _default_status_payload():
+	"""Build default status used when Redis data is unavailable."""
+	settings = read_settings()
+	pellet_db = read_pellet_db()
+	hopper_level_enabled = False if settings['modules']['dist'] == 'none' else True
+
+	return {
+		"s_plus": False,
+		"hopper_level_enabled": hopper_level_enabled,
+		"hopper_level": pellet_db['current']['hopper_level'],
+		"units": settings['globals']['units'],
+		"mode": "Stop",
+		"recipe": False,
+		"startup_timestamp": 0,
+		"start_time": 0,
+		"start_duration": 0,
+		"shutdown_duration": 0,
+		"prime_duration": 0,
+		"prime_amount": 0,
+		"lid_open_detected": False,
+		"lid_open_endtime": 0,
+		"p_mode": 0,
+		"recipe_paused": False,
+		"outpins": {
+			"auger": False,
+			"fan": False,
+			"igniter": False,
+			"power": False
+		}
+	}
+
 def read_status(init=False):
 	"""
 	Read Status dictionary from Redis DB
@@ -2290,36 +2335,13 @@ def read_status(init=False):
 	global cmdsts
 
 	if init:
-		settings = read_settings()
-		pellet_db = read_pellet_db()
-		hopper_level_enabled = False if settings['modules']['dist'] == 'none' else True
-		status = {
-		  	"s_plus": False,
-			"hopper_level_enabled": hopper_level_enabled,
-  			"hopper_level": pellet_db['current']['hopper_level'],
-			"units": settings['globals']['units'],
-			"mode": "Stop",
-			"recipe": False,
-			"startup_timestamp" : 0,
-			"start_time": 0,
-			"start_duration": 0,
-			"shutdown_duration": 0,
-			"prime_duration": 0,
-			"prime_amount": 0,
-			"lid_open_detected": False,
-			"lid_open_endtime": 0,
-			"p_mode": 0,
-			"recipe_paused": False,
-			"outpins": {
-				"auger": False,
-				"fan": False,
-				"igniter": False,
-				"power": False
-			}
-		}
+		status = _default_status_payload()
 		write_status(status)
 	else:
-		status = json.loads(cmdsts.get('control:status'))
+		status = _decode_json_or_default(cmdsts.get('control:status'), None)
+		if status is None:
+			status = _default_status_payload()
+			write_status(status)
 
 	return status
 
@@ -2385,7 +2407,7 @@ def read_probe_status(probe_info):
 		# Returns structured status information for all probes
 	"""
 	# Get current device status information from Redis
-	probe_device_info = read_generic_key('probe_device_info')
+	probe_device_info = read_generic_key('probe_device_info', [])
 	#print(f'Probe Device Info: {probe_device_info}')
 
 	# Initialize the status structure
@@ -3149,15 +3171,15 @@ def set_nested_key_value(data, key_list, value):
 
 	return data
 
-def read_generic_key(key):
+def read_generic_key(key, default_value=None) -> Any:
 	"""
 	Read generic data from Redis DB
 	:param key: key name
+	:param default_value: value to return if key does not exist or redis is unavailable
 	"""
 	global cmdsts
 
-	raw = cmdsts.get(key)
-	value = json.loads(raw) if raw is not None else None
+	value = _decode_json_or_default(cmdsts.get(key), default_value)
 
 	return value
 
