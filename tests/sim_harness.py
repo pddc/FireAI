@@ -85,11 +85,16 @@ class ControlHarness:
 		# readiness wait below sees *this* run's objects.
 		self.module.grill_platform = None
 		self.module.dist_device = None
+		common.cmdsts.delete('probe_device_info')
 		self.thread = threading.Thread(target=run, name='control-sim', daemon=True)
 		self.thread.start()
 		# _initialize() first stores the module *name* in grill_platform, then the object.
 		self.wait_for(lambda: hasattr(self.module.grill_platform, 'get_output_status') and self.module.dist_device is not None,
 					  sim_seconds=60, msg='control init')
+		# _initialize() flushes Redis; a command queued before the main loop's first pass would be lost on a slow
+		# machine. probe_device_info is written at the top of every loop iteration, so its presence means the
+		# flush is over and execute_control_writes() is about to run.
+		self.wait_for(lambda: common.read_generic_key('probe_device_info') is not None, sim_seconds=60, msg='control loop')
 		return self
 
 	def stop(self):
