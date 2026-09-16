@@ -391,6 +391,27 @@ def system_info(_: auth.Principal = Depends(current_principal)):
 	return {'version': s['versions'], 'modules': s['modules'], 'board': s.get('platform', {}).get('current'), 'system': info}
 
 
+@router.get('/system/whats-new')
+def whats_new(_: auth.Principal = Depends(current_principal)):
+	"""Release notes for the running version, plus whether they have not been shown since the last upgrade."""
+	s = common.read_settings()
+	try:
+		with open('updater/whats-new.md', encoding='utf-8') as f:
+			markdown = f.read()
+	except OSError:
+		markdown = ''
+	return {'version': s['versions']['server'], 'markdown': markdown, 'show': bool(s['globals'].get('updated_message')) and bool(markdown)}
+
+
+@router.post('/system/whats-new/dismiss')
+def whats_new_dismiss(_: auth.Principal = Depends(current_principal)):
+	s = common.read_settings()
+	s['globals']['updated_message'] = False
+	common.write_settings(s)
+	core_state.invalidate_settings_cache()
+	return {'ok': True}
+
+
 # ----- updates -----------------------------------------------------------
 
 

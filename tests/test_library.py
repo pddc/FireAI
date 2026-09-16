@@ -339,3 +339,19 @@ def test_metrics_rows_and_csv(settings, control):
 		assert len(c.get('/api/v1/metrics', headers=h).json()['metrics']) == 2
 		r = c.get('/api/v1/metrics.csv', headers=h)
 		assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv')
+
+
+def test_whats_new_shown_once(settings, control):
+	from server.app import create_app
+
+	s = common.read_settings()
+	s['globals']['updated_message'] = True
+	common.write_settings(s)
+	with TestClient(create_app()) as c:
+		tok = c.post('/api/v1/auth/setup', json={'password': 'correct horse'}).json()['token']
+		h = {'Authorization': f'Bearer {tok}'}
+		r = c.get('/api/v1/system/whats-new', headers=h).json()
+		assert r['show'] is True and r['markdown'].startswith('# FireAI') and r['version'] == s['versions']['server']
+		assert c.post('/api/v1/system/whats-new/dismiss', headers=h).status_code == 200
+		assert c.get('/api/v1/system/whats-new', headers=h).json()['show'] is False
+		assert common.read_settings()['globals']['updated_message'] is False

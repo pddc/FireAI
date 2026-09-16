@@ -7,6 +7,7 @@ import { useUi } from '@/stores/ui'
 import { MODE_LABEL } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { TimerPill } from '@/features/dashboard/TimerPill'
+import { WhatsNewDialog } from '@/features/settings/WhatsNewDialog'
 
 // Relative links: the shell is mounted at "/" in local mode and at "/g/:grillId" in cloud mode.
 const NAV = [
@@ -119,6 +120,7 @@ export function AppShell() {
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-4 pb-24 lg:pb-8">
           <Outlet />
         </main>
+        <WhatsNewDialog />
 
         {/* Mobile bottom tabs */}
         <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/60 bg-background/90 backdrop-blur lg:hidden pb-safe">
