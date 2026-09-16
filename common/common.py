@@ -1937,13 +1937,13 @@ def restart_control():
 	"""
 	Restart the Control Script
 	"""
-	os.system("sleep 3 && sudo supervisorctl restart control &")
+	os.system("sleep 3 && sudo supervisorctl restart fireai-control &")
 
 def restart_webapp():
 	"""
 	Restart the WebApp Script
 	"""
-	os.system("sleep 3 && sudo supervisorctl restart webapp &")
+	os.system("sleep 3 && sudo supervisorctl restart fireai-server &")
 
 def restart_scripts():
 	"""
