@@ -34,6 +34,9 @@ export function ProbeCard({ state, probe, size = 'md' }: Props) {
   const disconnected = devStatus.connected === false
   const battery = devStatus.battery_percentage
   const eta = notify?.req && notify.eta ? notify.eta : null
+  // Like PiFire's dashboard: dashes while stopped, so a stale 0 is never mistaken for a reading.
+  const stopped = state.mode === 'Stop' || state.mode === 'Error'
+  const shown = stopped ? null : temp
   const color = probeColor(state, probe)
   const gaugeSize = size === 'lg' ? 200 : 150
 
@@ -57,9 +60,9 @@ export function ProbeCard({ state, probe, size = 'md' }: Props) {
             {notify?.req ? <Bell className="size-4 text-ember" /> : <BellOff className="size-4 opacity-40" />}
           </span>
         </div>
-        <TempGauge value={temp ?? null} min={min} max={max} target={target} color={color} size={gaugeSize}>
+        <TempGauge value={shown ?? null} min={min} max={max} target={target} color={color} size={gaugeSize}>
           <div className={cn('font-semibold tabular leading-none', size === 'lg' ? 'text-5xl' : 'text-4xl')}>
-            {temp == null ? '--' : fmtTemp(temp, state.units, { unit: false })}
+            {shown == null ? '---' : fmtTemp(shown, state.units, { unit: false })}
             <span className="ml-0.5 align-top text-lg text-muted-foreground">°</span>
           </div>
           {target ? (
