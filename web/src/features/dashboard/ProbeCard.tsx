@@ -16,6 +16,7 @@ interface Props {
 const FOOD_COLORS = ['var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
 
 export function probeColor(state: GrillState, probe: ProbeMeta) {
+  if (probe.color) return probe.color
   if (probe.type === 'Primary') return 'var(--ember)'
   const foods = state.probes.filter((p) => p.type === 'Food')
   return FOOD_COLORS[foods.findIndex((p) => p.label === probe.label) % FOOD_COLORS.length]

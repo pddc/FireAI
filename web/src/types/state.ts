@@ -24,6 +24,8 @@ export interface ProbeMeta {
   device: string
   port: string
   enabled: boolean
+  /** user-picked line colour (hex); absent = app palette */
+  color?: string | null
 }
 
 export interface NotifyEntry {

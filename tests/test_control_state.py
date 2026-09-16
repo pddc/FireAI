@@ -76,3 +76,12 @@ def test_dashboard_prefs_follow_units_and_hidden_cards(settings):
 
 def test_eta_calculation_default_on():
 	assert common.default_settings()['globals']['eta_calculation'] is True
+
+
+def test_probe_meta_exposes_only_user_picked_colours(settings):
+	from core.state import probe_meta
+
+	settings['history_page']['probe_config'] = {'Grill': {'line_color': 'rgb(0, 64, 255, 1)'}, 'Probe1': {'line_color': '#38bdf8'}}
+	meta = {m['label']: m for m in probe_meta(settings)}
+	assert meta['Grill']['color'] is None  # PiFire's generated default → app palette
+	assert meta['Probe1']['color'] == '#38bdf8'

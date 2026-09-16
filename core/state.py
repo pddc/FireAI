@@ -40,12 +40,17 @@ def invalidate_settings_cache() -> None:
 
 
 def probe_meta(settings: dict) -> list[dict]:
-	"""Static probe descriptions (label, name, type, device, enabled) in map order."""
-	return [
-		{'label': p['label'], 'name': p['name'], 'type': p['type'], 'device': p['device'], 'port': p['port'],
-		 'enabled': p.get('enabled', True)}
-		for p in settings['probe_settings']['probe_map']['probe_info']
-	]
+	"""Static probe descriptions (label, name, type, device, enabled, colour) in map order.
+
+	``color`` is only set when the user picked one (a hex value from the graph's colour editor); PiFire's
+	generated rgb() defaults are left out so the app keeps its own palette until then."""
+	cfg = settings.get('history_page', {}).get('probe_config', {})
+	out = []
+	for p in settings['probe_settings']['probe_map']['probe_info']:
+		color = str(cfg.get(p['label'], {}).get('line_color', ''))
+		out.append({'label': p['label'], 'name': p['name'], 'type': p['type'], 'device': p['device'], 'port': p['port'],
+					'enabled': p.get('enabled', True), 'color': color if color.startswith('#') else None})
+	return out
 
 
 def dashboard_prefs(settings: dict) -> dict:
