@@ -184,3 +184,128 @@ def test_recipe_create_read_update(settings, control):
 	assert reg.execute('recipe.start', {'filename': 'missing.pfrecipe'}, origin='t').result == 'ERROR'
 	library.delete_recipe(name)
 	assert library.list_recipes() == []
+
+
+def _png(w=640, h=480, color=(200, 50, 20)):
+	from PIL import Image
+
+	buf = io.BytesIO()
+	Image.new('RGB', (w, h), color).save(buf, 'PNG')
+	return buf.getvalue()
+
+
+class TestCookPhotosAndNotes:
+	FN = '2026-09-16--1200-Cook.pifire'
+
+	def test_add_photo_makes_thumbnail_and_cover(self, cookdir):
+		asset = library.add_cook_photo(self.FN, _png(2400, 1800), as_thumbnail=True)
+		doc = library.read_cook(self.FN)
+		assert [a['id'] for a in doc['assets']] == ['a1', asset['id']]
+		assert doc['metadata']['thumbnail'] == asset['filename']
+		full, ctype = library.read_cook_asset(self.FN, asset['id'])
+		thumb, _ = library.read_cook_asset(self.FN, asset['id'], thumb=True)
+		from PIL import Image
+
+		assert Image.open(io.BytesIO(full)).size == (1200, 900) and ctype == 'image/jpeg'
+		assert Image.open(io.BytesIO(thumb)).size == (256, 256)
+
+	def test_photo_on_comment_and_removal_cleans_references(self, cookdir):
+		comments = library.add_cook_comment(self.FN, 'with photo')
+		cid = comments[0]['id']
+		asset = library.add_cook_photo(self.FN, _png(), comment_id=cid, as_thumbnail=True)
+		assert asset['id'] in library.read_cook(self.FN)['comments'][0]['assets']
+		library.delete_cook_photo(self.FN, asset['id'])
+		doc = library.read_cook(self.FN)
+		assert [a['id'] for a in doc['assets']] == ['a1']
+		assert doc['comments'][0]['assets'] == [] and doc['metadata']['thumbnail'] == ''
+		with zipfile.ZipFile(cookdir / self.FN) as zf:
+			assert not any(asset['id'] in n for n in zf.namelist())
+		# the original asset is untouched
+		assert library.read_cook_asset(self.FN, 'a1')[0] == b'JPEGDATA'
+
+	def test_not_an_image_rejected(self, cookdir):
+		with pytest.raises(ValueError):
+			library.add_cook_photo(self.FN, b'hello')
+		assert len(library.read_cook(self.FN)['assets']) == 1
+
+	def test_thumbnail_select_and_clear(self, cookdir):
+		assert library.set_cook_thumbnail(self.FN, 'a1')['thumbnail'] == 'a1.jpg'
+		assert library.set_cook_thumbnail(self.FN, None)['thumbnail'] == ''
+		with pytest.raises(FileNotFoundError):
+			library.set_cook_thumbnail(self.FN, 'nope')
+
+	def test_edit_and_delete_comment(self, cookdir):
+		cid = library.add_cook_comment(self.FN, 'first')[0]['id']
+		out = library.update_cook_comment(self.FN, cid, 'edited')
+		assert out[0]['text'] == 'edited' and out[0]['edited']
+		assert library.delete_cook_comment(self.FN, cid) == []
+		with pytest.raises(FileNotFoundError):
+			library.delete_cook_comment(self.FN, cid)
+
+	def test_export_import_roundtrip(self, cookdir):
+		data, name = library.export_cook(self.FN)
+		new = library.import_cook(data)
+		assert new != name and new.endswith('.pifire') and 'Brisket' in new
+		assert library.read_cook(new)['metadata']['title'] == 'Brisket'
+		assert len(library.list_cooks()) == 3
+		with pytest.raises(ValueError):
+			library.import_cook(b'not a zip')
+		buf = io.BytesIO()
+		with zipfile.ZipFile(buf, 'w') as zf:
+			zf.writestr('metadata.json', '{}')
+		with pytest.raises(ValueError, match='raw_data.json'):
+			library.import_cook(buf.getvalue())
+
+
+def test_recipe_photos_and_export(settings, control):
+	name = library.create_recipe('Ribs')
+	doc = library.read_recipe(name)
+	doc['recipe']['ingredients'] = [{'name': 'Ribs', 'quantity': '2 racks', 'assets': []}]
+	library.write_recipe_part(name, 'recipe', doc['recipe'])
+	cover = library.add_recipe_photo(name, _png(), as_cover=True)
+	step = library.add_recipe_photo(name, _png(), target='ingredients', index=0)
+	doc = library.read_recipe(name)
+	assert doc['metadata']['image'] == cover['filename'] and doc['metadata']['thumbnail'] == cover['filename']
+	assert doc['recipe']['ingredients'][0]['assets'] == [step['id']]
+	assert library.read_recipe_asset(name, step['id'], thumb=True)[1] == 'image/jpeg'
+	library.delete_recipe_photo(name, cover['id'])
+	doc = library.read_recipe(name)
+	assert doc['metadata']['image'] == '' and [a['id'] for a in doc['assets']] == [step['id']]
+	data, _ = library.export_recipe(name)
+	new = library.import_recipe(data)
+	assert library.read_recipe(new)['recipe']['ingredients'][0]['assets'] == [step['id']]
+	assert library.read_recipe_asset(new, step['id'])[0]
+	library.delete_recipe(name)
+	library.delete_recipe(new)
+
+
+def test_photo_endpoints(cookdir, settings, control):
+	from server.app import create_app
+
+	fn = '2026-09-16--1200-Cook.pifire'
+	with TestClient(create_app()) as c:
+		tok = c.post('/api/v1/auth/setup', json={'password': 'correct horse'}).json()['token']
+		h = {'Authorization': f'Bearer {tok}'}
+		r = c.post(f'/api/v1/cooks/{fn}/assets?thumbnail=true', files={'file': ('p.png', _png(), 'image/png')}, headers=h)
+		assert r.status_code == 201
+		aid = r.json()['id']
+		assert c.get(f'/api/v1/cooks/{fn}', headers=h).json()['metadata']['thumbnail'] == r.json()['filename']
+		assert c.get(f'/api/v1/cooks/{fn}/assets/{aid}?thumb=true', headers=h).headers['content-type'] == 'image/jpeg'
+		assert c.put(f'/api/v1/cooks/{fn}/thumbnail', json={'asset_id': None}, headers=h).json()['thumbnail'] == ''
+		cid = c.post(f'/api/v1/cooks/{fn}/comments', json={'text': 'yum'}, headers=h).json()['comments'][0]['id']
+		assert c.put(f'/api/v1/cooks/{fn}/comments/{cid}', json={'text': 'yum!'}, headers=h).json()['comments'][0]['text'] == 'yum!'
+		assert c.delete(f'/api/v1/cooks/{fn}/comments/{cid}', headers=h).json()['comments'] == []
+		assert c.delete(f'/api/v1/cooks/{fn}/assets/{aid}', headers=h).status_code == 200
+		assert c.post(f'/api/v1/cooks/{fn}/assets', files={'file': ('p.txt', b'nope', 'text/plain')}, headers=h).status_code == 400
+		d = c.get(f'/api/v1/cooks/{fn}/download', headers=h)
+		assert d.status_code == 200 and d.headers['content-disposition'].endswith(f'"{fn}"')
+		r = c.post('/api/v1/cooks/import', files={'file': (fn, d.content, 'application/zip')}, headers=h)
+		assert r.status_code == 201 and r.json()['filename'].endswith('.pifire')
+		# recipes
+		rn = c.post('/api/v1/recipes', json={'title': 'Chicken'}, headers=h).json()['filename']
+		r = c.post(f'/api/v1/recipes/{rn}/assets?cover=true', files={'file': ('p.png', _png(), 'image/png')}, headers=h)
+		assert r.status_code == 201
+		assert c.get(f'/api/v1/recipes/{rn}/assets/{r.json()["id"]}', headers=h).status_code == 200
+		d = c.get(f'/api/v1/recipes/{rn}/download', headers=h)
+		assert c.post('/api/v1/recipes/import', files={'file': (rn, d.content, 'application/zip')}, headers=h).status_code == 201
+		assert len(c.get('/api/v1/recipes', headers=h).json()['recipes']) == 2

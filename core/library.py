@@ -18,6 +18,138 @@ from pathlib import Path
 from common import common
 from file_mgmt.common import read_json_file_data, update_json_file_data
 
+IMAGE_TYPES = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp'}
+MAX_IMAGE = (1200, 900)
+THUMB = (256, 256)
+
+
+# --------------------------------------------------------------------------
+# Images inside .pifire / .pfrecipe archives (shared by cooks and recipes)
+# --------------------------------------------------------------------------
+
+
+def _read_part(path: Path, part: str, default):
+	data, status = read_json_file_data(str(path), part, unpackassets=False)
+	return data if status == 'OK' else default
+
+
+def _write_part(path: Path, part: str, data) -> None:
+	status = update_json_file_data(data, str(path), part)
+	if status != 'OK':
+		raise ValueError(status)
+
+
+def _prepare_image(data: bytes) -> tuple[bytes, bytes, str]:
+	"""Normalise an uploaded photo: apply EXIF rotation, cap the size, make a square thumbnail. Returns (full, thumb, ext)."""
+	from PIL import Image, ImageOps
+
+	try:
+		im = Image.open(io.BytesIO(data))
+		im.load()
+	except Exception as e:  # noqa: BLE001
+		raise ValueError(f'not an image: {e}')
+	im = ImageOps.exif_transpose(im)
+	ext = 'png' if im.format == 'PNG' and im.mode in ('RGBA', 'LA', 'P') else 'jpg'
+	if ext == 'jpg':
+		im = im.convert('RGB')
+	full = im.copy()
+	full.thumbnail(MAX_IMAGE)
+	thumb = ImageOps.fit(im, THUMB)
+	out, tout = io.BytesIO(), io.BytesIO()
+	if ext == 'jpg':
+		full.save(out, 'JPEG', quality=85, optimize=True)
+		thumb.save(tout, 'JPEG', quality=80)
+	else:
+		full.save(out, 'PNG', optimize=True)
+		thumb.save(tout, 'PNG')
+	return out.getvalue(), tout.getvalue(), ext
+
+
+def add_image_asset(path: Path, data: bytes) -> dict:
+	"""Store a photo (plus thumbnail) in the archive and register it in assets.json."""
+	full, thumb, ext = _prepare_image(data)
+	asset_id = common.generate_uuid()
+	asset = {'id': asset_id, 'filename': f'{asset_id}.{ext}', 'type': ext}
+	assets = _read_part(path, 'assets', [])
+	assets.append(asset)
+	_write_part(path, 'assets', assets)
+	with zipfile.ZipFile(path, 'a', zipfile.ZIP_DEFLATED) as zf:
+		zf.writestr(f"assets/{asset['filename']}", full)
+		zf.writestr(f"assets/thumbs/{asset['filename']}", thumb)
+	return asset
+
+
+def remove_image_asset(path: Path, asset_id: str, *, recipe: bool = False) -> None:
+	"""Delete a photo from the archive and every reference to it (thumbnail, comments, recipe rows)."""
+	assets = _read_part(path, 'assets', [])
+	asset = next((a for a in assets if a.get('id') == asset_id), None)
+	if not asset:
+		raise FileNotFoundError(asset_id)
+	filename = asset['filename']
+	members = {f'assets/{filename}', f'assets/thumbs/{filename}', 'assets.json'}
+	tmp = path.with_suffix(path.suffix + '.tmp')
+	with zipfile.ZipFile(path) as zin, zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
+		for item in zin.infolist():
+			if item.filename not in members:
+				zout.writestr(item, zin.read(item.filename))
+		zout.writestr('assets.json', json.dumps([a for a in assets if a['id'] != asset_id], indent=2))
+	os.replace(tmp, path)
+	refs = (filename, asset_id)
+	meta = _read_part(path, 'metadata', {})
+	if meta.get('thumbnail') in refs or meta.get('image') in refs:
+		meta['thumbnail'] = ''
+		if recipe:
+			meta['image'] = ''
+		_write_part(path, 'metadata', meta)
+	comments = _read_part(path, 'comments', [])
+	if any(set(c.get('assets', [])) & set(refs) for c in comments):
+		for c in comments:
+			c['assets'] = [a for a in c.get('assets', []) if a not in refs]
+		_write_part(path, 'comments', comments)
+	if recipe:
+		rec = _read_part(path, 'recipe', {})
+		rows = [r for section in ('ingredients', 'instructions') for r in rec.get(section, [])]
+		if any(set(r.get('assets', [])) & set(refs) for r in rows):
+			for r in rows:
+				r['assets'] = [a for a in r.get('assets', []) if a not in refs]
+			_write_part(path, 'recipe', rec)
+
+
+def read_image_asset(path: Path, asset_id: str, *, thumb: bool = False) -> tuple[bytes, str]:
+	assets = _read_part(path, 'assets', None)
+	if assets is None:
+		raise FileNotFoundError(asset_id)
+	asset = next((a for a in assets if a.get('id') == asset_id), None)
+	if not asset:
+		raise FileNotFoundError(asset_id)
+	member = f"assets/{'thumbs/' if thumb else ''}{asset['filename']}"
+	with zipfile.ZipFile(path) as zf:
+		data = zf.read(member)
+	return data, IMAGE_TYPES.get(asset.get('type', 'jpg').lower(), 'application/octet-stream')
+
+
+def _import_archive(data: bytes, folder: Path, suffix: str, required: tuple[str, ...]) -> str:
+	"""Validate an uploaded archive and store it under a unique name; returns the filename."""
+	try:
+		with zipfile.ZipFile(io.BytesIO(data)) as zf:
+			names = set(zf.namelist())
+			missing = [r for r in required if r not in names]
+			if missing:
+				raise ValueError(f'archive is missing {", ".join(missing)}')
+			meta = json.loads(zf.read('metadata.json'))
+	except zipfile.BadZipFile:
+		raise ValueError('not a valid archive')
+	folder.mkdir(exist_ok=True)
+	base = re.sub(r'[^A-Za-z0-9._ -]+', '', str(meta.get('title') or 'import')).strip() or 'import'
+	stamp = datetime.datetime.now().strftime('%Y-%m-%d--%H%M%S')
+	name = f'{stamp}-{base[:40]}{suffix}'
+	n = 1
+	while (folder / name).exists():
+		n += 1
+		name = f'{stamp}-{base[:40]}-{n}{suffix}'
+	(folder / name).write_bytes(data)
+	return name
+
 HISTORY_DIR = Path('history')
 RECIPES_DIR = Path('recipes')
 LOGS_DIR = Path('logs')
@@ -108,19 +240,86 @@ def delete_cook(filename: str) -> None:
 
 def read_cook_asset(filename: str, asset_id: str, *, thumb: bool = False) -> tuple[bytes, str]:
 	"""Return (bytes, content_type) for an image stored inside a cook file."""
+	return read_image_asset(HISTORY_DIR / _safe(filename, '.pifire'), asset_id, thumb=thumb)
+
+
+def add_cook_photo(filename: str, data: bytes, *, comment_id: str | None = None, as_thumbnail: bool = False) -> dict:
+	"""Attach a photo to a cook, optionally to one of its notes and/or as the cook's cover image."""
+	path = HISTORY_DIR / _safe(filename, '.pifire')
+	if not path.exists():
+		raise FileNotFoundError(filename)
+	asset = add_image_asset(path, data)
+	if comment_id:
+		comments = _read_part(path, 'comments', [])
+		for c in comments:
+			if c.get('id') == comment_id:
+				c.setdefault('assets', []).append(asset['id'])
+		_write_part(path, 'comments', comments)
+	if as_thumbnail:
+		meta = _read_part(path, 'metadata', {})
+		meta['thumbnail'] = asset['filename']
+		_write_part(path, 'metadata', meta)
+	return asset
+
+
+def delete_cook_photo(filename: str, asset_id: str) -> None:
+	remove_image_asset(HISTORY_DIR / _safe(filename, '.pifire'), asset_id)
+
+
+def set_cook_thumbnail(filename: str, asset_id: str | None) -> dict:
+	path = HISTORY_DIR / _safe(filename, '.pifire')
+	meta = _read_part(path, 'metadata', None)
+	if meta is None:
+		raise FileNotFoundError(filename)
+	if asset_id:
+		asset = next((a for a in _read_part(path, 'assets', []) if a['id'] == asset_id), None)
+		if not asset:
+			raise FileNotFoundError(asset_id)
+		meta['thumbnail'] = asset['filename']
+	else:
+		meta['thumbnail'] = ''
+	_write_part(path, 'metadata', meta)
+	return meta
+
+
+def update_cook_comment(filename: str, comment_id: str, text: str) -> list:
+	path = HISTORY_DIR / _safe(filename, '.pifire')
+	comments = _read_part(path, 'comments', None)
+	if comments is None:
+		raise FileNotFoundError(filename)
+	for c in comments:
+		if c.get('id') == comment_id:
+			c['text'] = text[:5000]
+			c['edited'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+			break
+	else:
+		raise FileNotFoundError(comment_id)
+	_write_part(path, 'comments', comments)
+	return comments
+
+
+def delete_cook_comment(filename: str, comment_id: str) -> list:
+	path = HISTORY_DIR / _safe(filename, '.pifire')
+	comments = _read_part(path, 'comments', None)
+	if comments is None:
+		raise FileNotFoundError(filename)
+	keep = [c for c in comments if c.get('id') != comment_id]
+	if len(keep) == len(comments):
+		raise FileNotFoundError(comment_id)
+	_write_part(path, 'comments', keep)
+	return keep
+
+
+def export_cook(filename: str) -> tuple[bytes, str]:
 	name = _safe(filename, '.pifire')
 	path = HISTORY_DIR / name
-	assets, status = read_json_file_data(str(path), 'assets', unpackassets=False)
-	if status != 'OK':
-		raise FileNotFoundError(asset_id)
-	asset = next((a for a in assets if a.get('id') == asset_id), None)
-	if not asset:
-		raise FileNotFoundError(asset_id)
-	member = f"assets/{'thumbs/' if thumb else ''}{asset['filename']}"
-	with zipfile.ZipFile(path) as zf:
-		data = zf.read(member)
-	ext = asset.get('type', 'jpg').lower()
-	return data, {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif'}.get(ext, 'application/octet-stream')
+	if not path.exists():
+		raise FileNotFoundError(name)
+	return path.read_bytes(), name
+
+
+def import_cook(data: bytes) -> str:
+	return _import_archive(data, HISTORY_DIR, '.pifire', ('metadata.json', 'raw_data.json'))
 
 
 def cook_rows(doc: dict) -> list[dict]:
@@ -267,6 +466,46 @@ def create_recipe(title: str = '') -> str:
 
 def delete_recipe(filename: str) -> None:
 	(RECIPES_DIR / _safe(filename, '.pfrecipe')).unlink()
+
+
+def read_recipe_asset(filename: str, asset_id: str, *, thumb: bool = False) -> tuple[bytes, str]:
+	return read_image_asset(RECIPES_DIR / _safe(filename, '.pfrecipe'), asset_id, thumb=thumb)
+
+
+def add_recipe_photo(filename: str, data: bytes, *, target: str | None = None, index: int | None = None, as_cover: bool = False) -> dict:
+	"""Attach a photo to a recipe: the cover image, or an ingredient / instruction row (target + index)."""
+	path = RECIPES_DIR / _safe(filename, '.pfrecipe')
+	if not path.exists():
+		raise FileNotFoundError(filename)
+	asset = add_image_asset(path, data)
+	if as_cover:
+		meta = _read_part(path, 'metadata', {})
+		meta['image'] = asset['filename']
+		meta['thumbnail'] = asset['filename']
+		_write_part(path, 'metadata', meta)
+	if target in ('ingredients', 'instructions') and index is not None:
+		rec = _read_part(path, 'recipe', {})
+		rows = rec.get(target, [])
+		if 0 <= index < len(rows):
+			rows[index].setdefault('assets', []).append(asset['id'])
+			_write_part(path, 'recipe', rec)
+	return asset
+
+
+def delete_recipe_photo(filename: str, asset_id: str) -> None:
+	remove_image_asset(RECIPES_DIR / _safe(filename, '.pfrecipe'), asset_id, recipe=True)
+
+
+def export_recipe(filename: str) -> tuple[bytes, str]:
+	name = _safe(filename, '.pfrecipe')
+	path = RECIPES_DIR / name
+	if not path.exists():
+		raise FileNotFoundError(name)
+	return path.read_bytes(), name
+
+
+def import_recipe(data: bytes) -> str:
+	return _import_archive(data, RECIPES_DIR, '.pfrecipe', ('metadata.json', 'recipe.json'))
 
 
 # --------------------------------------------------------------------------

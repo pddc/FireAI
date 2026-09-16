@@ -84,6 +84,91 @@ def cook_asset(filename: str, asset_id: str, thumb: bool = False, _: auth.Princi
 	return Response(content=data, media_type=ctype, headers={'Cache-Control': 'public, max-age=86400'})
 
 
+MAX_UPLOAD = 25 * 1024 * 1024
+
+
+async def _read_upload(file: UploadFile) -> bytes:
+	data = await file.read(MAX_UPLOAD + 1)
+	if len(data) > MAX_UPLOAD:
+		raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, {'code': 'too_large', 'message': 'File is larger than 25 MB'})
+	return data
+
+
+@router.post('/cooks/{filename}/assets', status_code=status.HTTP_201_CREATED)
+async def cook_photo(filename: str, file: UploadFile = File(...), comment_id: str | None = Query(default=None), thumbnail: bool = False,
+					 _: auth.Principal = Depends(current_principal)):
+	data = await _read_upload(file)
+	try:
+		return library.add_cook_photo(filename, data, comment_id=comment_id, as_thumbnail=thumbnail)
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+
+
+@router.delete('/cooks/{filename}/assets/{asset_id}')
+def cook_photo_delete(filename: str, asset_id: str, _: auth.Principal = Depends(current_principal)):
+	try:
+		library.delete_cook_photo(filename, asset_id)
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+	return {'ok': True}
+
+
+class ThumbnailBody(BaseModel):
+	asset_id: str | None = None
+
+
+@router.put('/cooks/{filename}/thumbnail')
+def cook_thumbnail(filename: str, body: ThumbnailBody, _: auth.Principal = Depends(current_principal)):
+	try:
+		return library.set_cook_thumbnail(filename, body.asset_id)
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+
+
+@router.put('/cooks/{filename}/comments/{comment_id}')
+def cook_comment_edit(filename: str, comment_id: str, body: CommentBody, _: auth.Principal = Depends(current_principal)):
+	try:
+		return {'comments': library.update_cook_comment(filename, comment_id, body.text)}
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+
+
+@router.delete('/cooks/{filename}/comments/{comment_id}')
+def cook_comment_delete(filename: str, comment_id: str, _: auth.Principal = Depends(current_principal)):
+	try:
+		return {'comments': library.delete_cook_comment(filename, comment_id)}
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+
+
+@router.get('/cooks/{filename}/download')
+def cook_download(filename: str, _: auth.Principal = Depends(current_principal)):
+	try:
+		data, name = library.export_cook(filename)
+	except (FileNotFoundError, ValueError) as e:
+		raise _nf(e)
+	return Response(content=data, media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="{name}"'})
+
+
+@router.post('/cooks/import', status_code=status.HTTP_201_CREATED)
+async def cook_import(file: UploadFile = File(...), _: auth.Principal = Depends(current_principal)):
+	data = await _read_upload(file)
+	try:
+		return {'filename': library.import_cook(data)}
+	except ValueError as e:
+		raise _bad(e)
+
+
 # ----- pellets -----------------------------------------------------------
 
 
@@ -187,6 +272,56 @@ def recipe_delete(filename: str, _: auth.Principal = Depends(require_admin)):
 	except ValueError as e:
 		raise _bad(e)
 	return {'ok': True}
+
+
+@router.get('/recipes/{filename}/assets/{asset_id}')
+def recipe_asset(filename: str, asset_id: str, thumb: bool = False, _: auth.Principal = Depends(current_principal)):
+	try:
+		data, ctype = library.read_recipe_asset(filename, asset_id, thumb=thumb)
+	except (FileNotFoundError, KeyError, ValueError):
+		raise _nf(asset_id)
+	return Response(content=data, media_type=ctype, headers={'Cache-Control': 'public, max-age=86400'})
+
+
+@router.post('/recipes/{filename}/assets', status_code=status.HTTP_201_CREATED)
+async def recipe_photo(filename: str, file: UploadFile = File(...), target: str | None = Query(default=None), index: int | None = Query(default=None),
+					   cover: bool = False, _: auth.Principal = Depends(current_principal)):
+	data = await _read_upload(file)
+	try:
+		return library.add_recipe_photo(filename, data, target=target, index=index, as_cover=cover)
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+
+
+@router.delete('/recipes/{filename}/assets/{asset_id}')
+def recipe_photo_delete(filename: str, asset_id: str, _: auth.Principal = Depends(current_principal)):
+	try:
+		library.delete_recipe_photo(filename, asset_id)
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+	return {'ok': True}
+
+
+@router.get('/recipes/{filename}/download')
+def recipe_download(filename: str, _: auth.Principal = Depends(current_principal)):
+	try:
+		data, name = library.export_recipe(filename)
+	except (FileNotFoundError, ValueError) as e:
+		raise _nf(e)
+	return Response(content=data, media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="{name}"'})
+
+
+@router.post('/recipes/import', status_code=status.HTTP_201_CREATED)
+async def recipe_import(file: UploadFile = File(...), _: auth.Principal = Depends(current_principal)):
+	data = await _read_upload(file)
+	try:
+		return {'filename': library.import_recipe(data)}
+	except ValueError as e:
+		raise _bad(e)
 
 
 # ----- logs / system -----------------------------------------------------
