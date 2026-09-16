@@ -355,3 +355,68 @@ def test_whats_new_shown_once(settings, control):
 		assert c.post('/api/v1/system/whats-new/dismiss', headers=h).status_code == 200
 		assert c.get('/api/v1/system/whats-new', headers=h).json()['show'] is False
 		assert common.read_settings()['globals']['updated_message'] is False
+
+
+class TestMaintenance:
+	def test_clear_each_data_set(self, cookdir, settings, control):
+		library.LOGS_DIR.mkdir(exist_ok=True)
+		(library.LOGS_DIR / 'events.log').write_text('2026-09-16 10:00:00 [INFO] hello\n')
+		(library.LOGS_DIR / 'control.log').write_text('x')
+		db = common.read_pellet_db()
+		db['log']['2026-09-16 10:00:00'] = db['current']['pelletid']
+		common.write_pellet_db(db)
+		common.write_current({'probe_history': {'primary': {'Grill': 200.0}, 'food': {}, 'aux': {}}, 'primary_setpoint': 0, 'notify_targets': {}})
+		library.clear_data('pellet_log')
+		assert common.read_pellet_db()['log'] == {}
+		library.clear_data('events')
+		assert (library.LOGS_DIR / 'events.log').read_text() == '' or 'cleared' in (library.LOGS_DIR / 'events.log').read_text()
+		library.clear_data('logs')
+		assert not (library.LOGS_DIR / 'control.log').exists()
+		library.clear_data('history')
+		assert common.read_history() == []
+		library.clear_data('pellet_db')
+		assert len(common.read_pellet_db()['log']) == 1  # the fresh default load
+		with pytest.raises(ValueError):
+			library.clear_data('settings')
+		# cook files are untouched by every action
+		assert len(library.list_cooks()) == 2
+
+	def test_debug_bundle_is_redacted(self, settings, control):
+		s = common.read_settings()
+		s['notify_services']['pushover']['API_key'] = 'sekrit-pushover'
+		common.write_settings(s)
+		data, name = library.export_debug_bundle()
+		with zipfile.ZipFile(io.BytesIO(data)) as zf:
+			names = set(zf.namelist())
+			assert {'settings.json', 'control.json', 'status.json', 'pelletdb.json', 'errors.json'} <= names
+			blob = b''.join(zf.read(n) for n in names)
+		assert b'sekrit-pushover' not in blob and b'password_hash' not in blob
+		assert name.startswith('fireai-debug-')
+
+	def test_factory_reset_keeps_password_and_reopens_wizard(self, settings, control):
+		from server import auth
+
+		auth.set_password('correct horse')
+		s = common.read_settings()
+		s['globals']['grill_name'] = 'Custom'
+		s['globals']['first_time_setup'] = False
+		common.write_settings(s)
+		library.factory_reset()
+		s = common.read_settings()
+		assert s['globals']['grill_name'] == '' and s['globals']['first_time_setup'] is True
+		assert auth.verify_password('correct horse')
+
+	def test_endpoints(self, settings, control):
+		from server.app import create_app
+
+		with TestClient(create_app()) as c:
+			tok = c.post('/api/v1/auth/setup', json={'password': 'correct horse'}).json()['token']
+			h = {'Authorization': f'Bearer {tok}'}
+			assert c.delete('/api/v1/system/data/history', headers=h).status_code == 200
+			assert c.delete('/api/v1/system/data/nope', headers=h).status_code == 400
+			assert c.get('/api/v1/system/logs.zip', headers=h).headers['content-type'] == 'application/zip'
+			assert c.get('/api/v1/system/debug.zip', headers=h).headers['content-type'] == 'application/zip'
+			assert c.post('/api/v1/system/factory-reset', json={'confirm': 'no'}, headers=h).status_code == 400
+			r = c.post('/api/v1/system/factory-reset', json={'confirm': 'RESET'}, headers=h)
+			assert r.status_code == 200 and r.json()['restart_required'] is True
+			assert c.get('/api/v1/hardware', headers=h).json()['current']['first_time_setup'] is True

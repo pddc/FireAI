@@ -391,6 +391,43 @@ def system_info(_: auth.Principal = Depends(current_principal)):
 	return {'version': s['versions'], 'modules': s['modules'], 'board': s.get('platform', {}).get('current'), 'system': info}
 
 
+@router.delete('/system/data/{what}')
+def system_clear_data(what: str, _: auth.Principal = Depends(require_admin)):
+	"""Delete history | events | pellet_log | pellet_db | logs."""
+	try:
+		library.clear_data(what)
+	except ValueError as e:
+		raise _bad(e)
+	core_state.invalidate_settings_cache()
+	return {'ok': True}
+
+
+@router.get('/system/logs.zip')
+def system_logs_zip(_: auth.Principal = Depends(require_admin)):
+	data, name = library.export_logs()
+	return Response(content=data, media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="{name}"'})
+
+
+@router.get('/system/debug.zip')
+def system_debug_zip(_: auth.Principal = Depends(require_admin)):
+	data, name = library.export_debug_bundle()
+	return Response(content=data, media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="{name}"'})
+
+
+class FactoryResetBody(BaseModel):
+	confirm: str = Field(description="must be the word RESET")
+
+
+@router.post('/system/factory-reset')
+def system_factory_reset(body: FactoryResetBody, _: auth.Principal = Depends(require_admin)):
+	if body.confirm != 'RESET':
+		raise _bad('type RESET to confirm')
+	library.factory_reset()
+	core_state.invalidate_settings_cache()
+	common.write_control({'settings_update': True}, origin='api')
+	return {'ok': True, 'restart_required': True}
+
+
 @router.get('/system/whats-new')
 def whats_new(_: auth.Principal = Depends(current_principal)):
 	"""Release notes for the running version, plus whether they have not been shown since the last upgrade."""

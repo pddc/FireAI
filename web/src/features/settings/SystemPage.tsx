@@ -12,6 +12,7 @@ import { useGrillState } from '@/stores/grill'
 import { fmtDuration } from '@/lib/format'
 import { SettingsSectionInline } from './SettingsSectionInline'
 import { ApiKeysCard } from './ApiKeysCard'
+import { MaintenanceCard } from './MaintenanceCard'
 
 interface UpdateCheck {
   current: string
@@ -156,6 +157,8 @@ export function SystemPage() {
           <input ref={fileRef} type="file" accept=".zip,.json" className="hidden" onChange={(e) => e.target.files?.[0] && restore.mutate(e.target.files[0])} />
         </CardContent>
       </Card>
+
+      <MaintenanceCard />
 
       <ApiKeysCard />
 

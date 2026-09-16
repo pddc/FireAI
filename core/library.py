@@ -577,6 +577,101 @@ def tail_log(name: str, lines: int = 200) -> list[str]:
 
 
 # --------------------------------------------------------------------------
+# Maintenance (PiFire's Admin → data management)
+# --------------------------------------------------------------------------
+
+MAINTENANCE_ACTIONS = ('history', 'events', 'pellet_log', 'pellet_db', 'logs')
+
+
+def clear_data(what: str) -> None:
+	"""Delete one kind of runtime data. Settings and cook files are never touched here."""
+	if what == 'history':
+		common.write_log('Clearing history.')
+		common.read_history(0, flushhistory=True)
+	elif what == 'events':
+		p = LOGS_DIR / 'events.log'
+		if p.exists():
+			p.write_text('')
+		common.write_log('Events log cleared.')
+	elif what == 'pellet_log':
+		common.write_log('Clearing pellet log.')
+		db = common.read_pellet_db()
+		db['log'] = {}
+		common.write_pellet_db(db)
+	elif what == 'pellet_db':
+		common.write_log('Resetting pellet database to defaults.')
+		common.write_pellet_db(common.default_pellets())
+	elif what == 'logs':
+		for p in LOGS_DIR.glob('*.log*'):
+			if p.name == 'events.log':
+				p.write_text('')
+			else:
+				try:
+					p.unlink()
+				except OSError:
+					p.write_text('')
+		common.write_log('Log files deleted.')
+	else:
+		raise ValueError(f'unknown data set {what!r}')
+
+
+def export_logs() -> tuple[bytes, str]:
+	"""Zip of every log file, for support requests."""
+	buf = io.BytesIO()
+	with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+		for p in sorted(LOGS_DIR.glob('*.log*')) if LOGS_DIR.exists() else []:
+			zf.write(p, arcname=p.name)
+	stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+	return buf.getvalue(), f'fireai-logs-{stamp}.zip'
+
+
+def export_debug_bundle() -> tuple[bytes, str]:
+	"""Settings (secrets redacted), control, status, current, versions, errors and the events log in one zip."""
+	from core import state as core_state
+	from core.settings_schema import redact
+
+	buf = io.BytesIO()
+	with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+		zf.writestr('settings.json', json.dumps(redact(common.read_settings()), indent=2))
+		zf.writestr('control.json', json.dumps(common.read_control(), indent=2, default=str))
+		zf.writestr('status.json', json.dumps(common.read_status(), indent=2, default=str))
+		zf.writestr('current.json', json.dumps(common.read_current() or {}, indent=2, default=str))
+		zf.writestr('pelletdb.json', json.dumps(common.read_pellet_db(), indent=2))
+		try:
+			zf.writestr('state.json', json.dumps(core_state.snapshot(), indent=2, default=str))
+		except Exception as e:  # noqa: BLE001 - the bundle is for diagnosing exactly this kind of failure
+			zf.writestr('state.error.txt', repr(e))
+		zf.writestr('errors.json', json.dumps(common.read_errors(), indent=2))
+		try:
+			zf.writestr('probe_device_info.json', json.dumps(redact({'d': common.read_generic_key('probe_device_info') or []})['d'], indent=2))
+		except Exception:  # noqa: BLE001
+			pass
+		for name in ('events.log', 'control.log', 'server.log'):
+			p = LOGS_DIR / name
+			if p.exists():
+				zf.writestr(name, '\n'.join(tail_log(name, 2000)))
+	stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+	return buf.getvalue(), f'fireai-debug-{stamp}.zip'
+
+
+def factory_reset() -> None:
+	"""Back to defaults: settings, pellet database, control state and history. Cook files and recipes stay.
+
+	The next start of the app goes through the first-run wizard; the admin password is kept so the grill
+	is not left open on the network."""
+	common.write_log('Resetting settings, control and history to factory defaults.')
+	auth_block = common.read_settings().get('server', {}).get('auth', {})
+	common.read_history(0, flushhistory=True)
+	common.read_control(flush=True)
+	settings = common.default_settings()
+	settings.setdefault('server', {})['auth'] = auth_block
+	settings['globals']['first_time_setup'] = True
+	common.write_settings(settings)
+	common.write_pellet_db(common.default_pellets())
+	common.write_control(common.default_control(), origin='app')
+
+
+# --------------------------------------------------------------------------
 # Backups
 # --------------------------------------------------------------------------
 
