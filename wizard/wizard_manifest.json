@@ -1908,10 +1908,10 @@
           },
           "triggerlevel": {
             "friendly_name": "Relay Type",
-            "description": "Select the trigger level for the relays attached to the platform.",
+            "description": "Select the trigger level for the relays attached to the platform. (Default is Active High)",
             "options": {
-              "LOW": "Active Low",
-              "HIGH": "Active High"
+              "HIGH": "Active High",
+              "LOW": "Active Low"
             },
             "settings": [
               "platform",
@@ -1922,8 +1922,8 @@
             "friendly_name": "Fan Type",
             "description": "Select if your platform supports a DC(PWM) fan or uses a regular AC Fan.",
             "options": {
-              "True": "DC Fan (PWM)",
-              "False": "AC Fan"
+              "False": "AC Fan",
+              "True": "DC Fan (PWM)"
             },
             "settings": [
               "platform",
@@ -3074,6 +3074,228 @@
               ],
               "default": "True",
               "hidden": true
+            }
+          ]
+        }
+      },
+      "bt_ibbq_alt": {
+        "friendly_name": "Bluetooth - iBBQ / Inkbird BT (Bleak Alt)",
+        "filename": "bt_ibbq_alt",
+        "description": "This device module supports Bluetooth LE iBBQ/xBBQ devices using the Bleak library. It is intended as an alternative to the legacy bluepy implementation while preserving similar behavior.",
+        "default": false,
+        "image": "bt_ibbq.png",
+        "reboot_required": false,
+        "py_dependencies": [
+          "bleak==3.0.1"
+        ],
+        "apt_dependencies": [],
+        "command_list": [],
+        "settings_dependencies": {
+          "units": {
+            "friendly_name": "Temp Units",
+            "description": "Select the temperature units to use for PiFire globally.  (This can be modified in settings later)",
+            "options": {
+              "F": "Fahrenheit",
+              "C": "Celsius"
+            },
+            "settings": [
+              "globals",
+              "units"
+            ]
+          }
+        },
+        "device_specific": {
+          "ports": [
+            "BT0",
+            "BT1",
+            "BT2",
+            "BT3"
+          ],
+          "type": "bluetooth",
+          "config": [
+            {
+              "label": "hardware_id",
+              "friendly_name": "Hardware ID",
+              "description": "This is the unique Hardware ID or Address of the peripheral (format: xx:xx:xx:xx:xx:xx).  This should be discovered during scanning.",
+              "type": "bt_address",
+              "default": "",
+              "hidden": false
+            },
+            {
+              "label": "transient",
+              "friendly_name": "Transient",
+              "description": "Select whether this device is fixed/always attached (default) or if it is transient/sometimes detached.",
+              "type": "list",
+              "list_values": [
+                "True",
+                "False"
+              ],
+              "list_labels": [
+                "Transient (sometimes detached)",
+                "Fixed (always attached)"
+              ],
+              "default": "True",
+              "hidden": true
+            },
+            {
+              "label": "num_probes",
+              "friendly_name": "Number of Probes",
+              "description": "Select the number of probes for this device.",
+              "type": "int",
+              "min": 2,
+              "max": 4,
+              "step": 1,
+              "default": 4,
+              "hidden": true
+            }
+          ]
+        }
+      },
+      "bt_meater_alt": {
+        "friendly_name": "Bluetooth - Meater (Bleak Alt)",
+        "filename": "bt_meater_alt",
+        "description": "This device module supports Bluetooth LE Meater probe thermometer devices (Original Meater and Meater Pro) using the Bleak library. This is an alternative to the legacy bluepy implementation.",
+        "default": false,
+        "image": "bt_meater.png",
+        "reboot_required": false,
+        "py_dependencies": [
+          "bleak==3.0.1"
+        ],
+        "apt_dependencies": [],
+        "command_list": [],
+        "settings_dependencies": {
+          "units": {
+            "friendly_name": "Temp Units",
+            "description": "Select the temperature units to use for PiFire globally.  (This can be modified in settings later)",
+            "options": {
+              "F": "Fahrenheit",
+              "C": "Celsius"
+            },
+            "settings": [
+              "globals",
+              "units"
+            ]
+          }
+        },
+        "device_specific": {
+          "ports": [
+            "BT_Tip",
+            "BT_Ambient"
+          ],
+          "type": "bluetooth",
+          "config": [
+            {
+              "label": "hardware_id",
+              "friendly_name": "Hardware ID",
+              "description": "This is the unique Hardware ID or Address of the peripheral (format: xx:xx:xx:xx:xx:xx).  This should be discovered during scanning.",
+              "type": "bt_address",
+              "default": "",
+              "hidden": false
+            },
+            {
+              "label": "transient",
+              "friendly_name": "Transient",
+              "description": "Select whether this device is fixed/always attached (default) or if it is transient/sometimes detached.",
+              "type": "list",
+              "list_values": [
+                "True",
+                "False"
+              ],
+              "list_labels": [
+                "Transient (sometimes detached)",
+                "Fixed (always attached)"
+              ],
+              "default": "True",
+              "hidden": true
+            }
+          ]
+        }
+      },
+      "bt_igrill_alt": {
+        "friendly_name": "Bluetooth - Weber iGrill (Bleak Alt)",
+        "filename": "bt_igrill_alt",
+        "description": "This device module supports Bluetooth LE Weber iGrill devices (mini, mini v2, v2, v202, and v3) using the Bleak library. This module currently supports authentication, probe temperatures, and battery level. WARNING: On most Raspberry Pi models, 2.4GHz WiFi and Bluetooth share the same antenna, which may cause signal interference. If you experience unreliable iGrill connections, consider disabling WiFi or moving away from other 2.4GHz wireless devices.",
+        "default": false,
+        "image": "bt_ibbq.png",
+        "reboot_required": false,
+        "py_dependencies": [
+          "bleak==3.0.1"
+        ],
+        "apt_dependencies": [],
+        "command_list": [],
+        "settings_dependencies": {
+          "units": {
+            "friendly_name": "Temp Units",
+            "description": "Select the temperature units to use for PiFire globally.  (This can be modified in settings later)",
+            "options": {
+              "F": "Fahrenheit",
+              "C": "Celsius"
+            },
+            "settings": [
+              "globals",
+              "units"
+            ]
+          }
+        },
+        "device_specific": {
+          "ports": [
+            "BT0",
+            "BT1",
+            "BT2",
+            "BT3"
+          ],
+          "type": "bluetooth",
+          "config": [
+            {
+              "label": "hardware_id",
+              "friendly_name": "Hardware ID",
+              "description": "This is the unique Hardware ID or Address of the peripheral (format: xx:xx:xx:xx:xx:xx).  This should be discovered during scanning.",
+              "type": "bt_address",
+              "default": "",
+              "hidden": false
+            },
+            {
+              "label": "transient",
+              "friendly_name": "Transient",
+              "description": "Select whether this device is fixed/always attached (default) or if it is transient/sometimes detached.",
+              "type": "list",
+              "list_values": [
+                "True",
+                "False"
+              ],
+              "list_labels": [
+                "Transient (sometimes detached)",
+                "Fixed (always attached)"
+              ],
+              "default": "True",
+              "hidden": true
+            },
+            {
+              "label": "num_probes",
+              "friendly_name": "Number of Probes",
+              "description": "Select the number of probes for this device.",
+              "type": "int",
+              "min": 2,
+              "max": 4,
+              "step": 1,
+              "default": 4,
+              "hidden": true
+            },
+            {
+              "label": "debug",
+              "friendly_name": "Debug Logging",
+              "description": "Enable verbose debug logging for iGrill connection, authentication, notifications, and probe value mapping. Disable when not troubleshooting.",
+              "type": "list",
+              "list_values": [
+                "True",
+                "False"
+              ],
+              "list_labels": [
+                "Enabled",
+                "Disabled"
+              ],
+              "default": "False",
+              "hidden": false
             }
           ]
         }
@@ -4322,7 +4544,7 @@
         ]
       },
       "ili9488b": {
-        "friendly_name": "ILI988 TFT with 3-Button Input",
+        "friendly_name": "ILI9488 TFT with 3-Button Input",
         "filename": "ili9488b",
         "description": "The ILI9488 TFT Display Module LCD Screen is an affordable, popular display with a 480x320 resolution and color.  It comes in 2 different physical sizes, 3.5\" and 4.0\" with and without touch. This version of the module supports a three button input.",
         "notes": "Pinout:  Display - MISO = MISO(Pin 21), LED = GPIO05, SCK = SCLK(Pin 23), MOSI = MOSI(Pin 19), DC = GPIO24, RST = GPIO25, CS = CE0(Pin 24). Buttons - UP = GPIO16, DOWN = GPIO20, ENTER = GPIO21, GND = GND, VCC = 3.3V",
@@ -5016,7 +5238,8 @@
         "py_dependencies": [
           "rpi-backlight==2.6.0",
           "pillow==11.1.0",
-          "pygame==2.6.1"
+          "pygame==2.6.1",
+          "pyky040==0.1.4"
         ],
         "apt_dependencies": [
           "lightdm",
