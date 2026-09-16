@@ -1,16 +1,25 @@
-import { useEffect } from 'react'
-import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, type RouteObject } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { AppShell } from './layout/AppShell'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { PlaceholderPage } from '@/features/PlaceholderPage'
 import { LoginPage, SetupPage } from '@/features/auth/AuthPages'
+import { SettingsIndexPage } from '@/features/settings/SettingsIndexPage'
 import { useAuth } from '@/stores/auth'
 import { useGrill } from '@/stores/grill'
 import { LocalSource } from '@/lib/source/LocalSource'
-import { Loader2 } from 'lucide-react'
-import { lazy, Suspense } from 'react'
+import { IS_CLOUD } from '@/lib/mode'
 
 const GraphPage = lazy(() => import('@/features/graph/GraphPage').then((m) => ({ default: m.GraphPage })))
+const CloudPage = lazy(() => import('@/features/settings/CloudPage').then((m) => ({ default: m.CloudPage })))
+const cloudPage = (name: 'SignInPage' | 'GrillsPage' | 'PairPage' | 'CloudGrillGate' | 'CloudAuthGate') =>
+  lazy(() => import('@/features/cloud/CloudPages').then((m) => ({ default: m[name] })))
+const SignInPage = cloudPage('SignInPage')
+const GrillsPage = cloudPage('GrillsPage')
+const PairPage = cloudPage('PairPage')
+const CloudGrillGate = cloudPage('CloudGrillGate')
+const CloudAuthGate = cloudPage('CloudAuthGate')
 
 function FullScreenSpinner() {
   return (
@@ -20,8 +29,10 @@ function FullScreenSpinner() {
   )
 }
 
-/** Decides between setup / login / app, and attaches the data source once authenticated. */
-function AuthGate() {
+const lazyEl = (el: React.ReactNode) => <Suspense fallback={<FullScreenSpinner />}>{el}</Suspense>
+
+/** Local mode: decides between setup / login / app and attaches the LocalSource. */
+function LocalAuthGate() {
   const { checking, setupRequired, token, authDisabled, role } = useAuth()
   const attach = useGrill((s) => s.attach)
   const source = useGrill((s) => s.source)
@@ -43,30 +54,48 @@ function AuthGate() {
   return <Outlet />
 }
 
-const router = createBrowserRouter([
+/** Pages shown inside the shell, identical in both modes. */
+const shellChildren: RouteObject[] = [
+  { index: true, element: <DashboardPage /> },
+  { path: 'graph', element: lazyEl(<GraphPage />) },
+  { path: 'cooks', element: <PlaceholderPage title="Cooks" /> },
+  { path: 'settings', element: <SettingsIndexPage /> },
+  ...(IS_CLOUD ? [] : [{ path: 'settings/cloud', element: lazyEl(<CloudPage />) }]),
+  { path: 'settings/*', element: <PlaceholderPage title="Settings" /> },
+]
+
+const localRoutes: RouteObject[] = [
   { path: '/setup', element: <SetupPage /> },
   { path: '/login', element: <LoginPage /> },
   {
-    element: <AuthGate />,
+    element: <LocalAuthGate />,
+    children: [{ path: '/', element: <AppShell />, children: [...shellChildren, { path: '*', element: <Navigate to="/" replace /> }] }],
+  },
+]
+
+const cloudRoutes: RouteObject[] = [
+  { path: '/signin', element: lazyEl(<SignInPage />) },
+  {
+    element: lazyEl(<CloudAuthGate />),
     children: [
+      { path: '/grills', element: lazyEl(<GrillsPage />) },
+      { path: '/grills/pair', element: lazyEl(<PairPage />) },
       {
-        element: <AppShell />,
-        children: [
-          { path: '/', element: <DashboardPage /> },
-          { path: '/graph', element: <Suspense fallback={<FullScreenSpinner />}><GraphPage /></Suspense> },
-          { path: '/cooks', element: <PlaceholderPage title="Cooks" /> },
-          { path: '/settings/*', element: <PlaceholderPage title="Settings" /> },
-          { path: '*', element: <Navigate to="/" replace /> },
-        ],
+        path: '/g/:grillId',
+        element: lazyEl(<CloudGrillGate />),
+        children: [{ element: <AppShell />, children: shellChildren }],
       },
+      { path: '*', element: <Navigate to="/grills" replace /> },
     ],
   },
-])
+]
+
+const router = createBrowserRouter(IS_CLOUD ? cloudRoutes : localRoutes)
 
 export function AppRouter() {
   const bootstrap = useAuth((s) => s.bootstrap)
   useEffect(() => {
-    bootstrap()
+    if (!IS_CLOUD) bootstrap()
   }, [bootstrap])
   return <RouterProvider router={router} />
 }

@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
+import { IS_CLOUD } from '@/lib/mode'
 import { Flame, LineChart, BookOpen, Settings2, Wifi, WifiOff, Loader2, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useConnection, useGrillState } from '@/stores/grill'
@@ -7,11 +8,12 @@ import { MODE_LABEL } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { TimerPill } from '@/features/dashboard/TimerPill'
 
+// Relative links: the shell is mounted at "/" in local mode and at "/g/:grillId" in cloud mode.
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: Flame, end: true },
-  { to: '/graph', label: 'Graph', icon: LineChart },
-  { to: '/cooks', label: 'Cooks', icon: BookOpen },
-  { to: '/settings', label: 'Settings', icon: Settings2 },
+  { to: '.', label: 'Dashboard', icon: Flame, end: true },
+  { to: 'graph', label: 'Graph', icon: LineChart },
+  { to: 'cooks', label: 'Cooks', icon: BookOpen },
+  { to: 'settings', label: 'Settings', icon: Settings2 },
 ]
 
 function ConnectionDot() {
@@ -95,7 +97,11 @@ export function AppShell() {
               <Flame className="size-5 text-ember" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold leading-tight">{state?.name || 'FireAI'}</div>
+              {IS_CLOUD ? (
+                <Link to="/grills" className="block truncate text-sm font-semibold leading-tight hover:underline">{state?.name || 'FireAI'}</Link>
+              ) : (
+                <div className="truncate text-sm font-semibold leading-tight">{state?.name || 'FireAI'}</div>
+              )}
               <div className="flex items-center gap-2">
                 <ModeBadge />
               </div>
