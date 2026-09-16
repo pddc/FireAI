@@ -95,6 +95,7 @@ def main(argv=None):
 
 	if args.with_server:
 		import uvicorn
+
 		from server.app import create_app
 
 		app = create_app()

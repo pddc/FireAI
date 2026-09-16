@@ -3143,7 +3143,8 @@ def read_generic_key(key):
 	"""
 	global cmdsts
 
-	value = json.loads(cmdsts.get(key))
+	raw = cmdsts.get(key)
+	value = json.loads(raw) if raw is not None else None
 
 	return value
 
