@@ -36,7 +36,7 @@ from common import common
 from core import commands as cmdreg
 from core import state as core_state
 from core.settings_schema import redact
-from server import auth, cloud, probes
+from server import auth, cloud, library, probes
 from server.deps import current_principal, require_admin
 
 API_PREFIX = '/api/v1'
@@ -150,6 +150,7 @@ def create_app(*, hub: StateHub | None = None) -> FastAPI:
 	app.state.hub = hub
 	app.include_router(cloud.router)
 	app.include_router(probes.router)
+	app.include_router(library.router)
 	app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
 					   allow_methods=['*'], allow_headers=['*'])
 
@@ -263,10 +264,6 @@ def create_app(*, hub: StateHub | None = None) -> FastAPI:
 		events = common.read_events(legacy=False)
 		events = events[-limit:]
 		return {'events': [{'date': e[0], 'time': e[1], 'message': e[2].strip() if len(e) > 2 else ''} for e in events]}
-
-	@app.get(f'{API_PREFIX}/pellets', tags=['pellets'])
-	def get_pellets(_: auth.Principal = Depends(current_principal)):
-		return common.read_pellet_db()
 
 	@app.get(f'{API_PREFIX}/probes/devices', tags=['probes'])
 	def get_probe_devices(_: auth.Principal = Depends(current_principal)):
