@@ -32,10 +32,20 @@ interface Asset {
   filename: string
   type: string
 }
+interface Comment {
+  id: string
+  username?: string
+  text: string
+  rating?: number
+  date: string
+  time: string
+  assets?: string[]
+}
 interface Recipe {
   filename: string
   metadata: { title: string; description: string; author: string; rating: number; prep_time: number; cook_time: number; difficulty: string; units: string; food_probes: number; image?: string; thumbnail?: string }
   recipe: { ingredients: { name: string; quantity: string; assets?: string[] }[]; instructions: { text: string; step: number; assets?: string[] }[]; steps: Step[] }
+  comments?: Comment[]
   assets: Asset[]
 }
 interface Summary {
@@ -45,6 +55,8 @@ interface Summary {
   cook_time: number
   difficulty: string
   thumbnail?: string
+  comment_rating?: number | null
+  comments?: number
   error?: string
 }
 
@@ -140,7 +152,9 @@ export function RecipesPage() {
   const [lightbox, setLightbox] = useState<Asset | null>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const importInput = useRef<HTMLInputElement>(null)
-  const [photoTarget, setPhotoTarget] = useState<{ target?: 'ingredients' | 'instructions'; index?: number; cover?: boolean }>({})
+  const [photoTarget, setPhotoTarget] = useState<{ target?: 'ingredients' | 'instructions' | 'comments'; index?: number; cover?: boolean }>({})
+  const [commentText, setCommentText] = useState('')
+  const [commentRating, setCommentRating] = useState(0)
   const units = state?.units ?? 'F'
   const foodLabels = state?.probes.filter((p) => p.type === 'Food' && p.enabled).map((p) => p.name) ?? ['Probe 1', 'Probe 2']
 
@@ -185,7 +199,9 @@ export function RecipesPage() {
         const next = structuredClone(d)
         next.assets = [...(next.assets ?? []), asset]
         if (vars.cover) { next.metadata.image = asset.filename; next.metadata.thumbnail = asset.filename }
-        if (vars.target && vars.index != null) {
+        if (vars.target === 'comments' && vars.index != null && next.comments?.[vars.index]) {
+          next.comments[vars.index].assets = [...(next.comments[vars.index].assets ?? []), asset.id]
+        } else if (vars.target && vars.target !== 'comments' && vars.index != null) {
           const row = next.recipe[vars.target][vars.index] as { assets?: string[] }
           row.assets = [...(row.assets ?? []), asset.id]
         }
@@ -196,7 +212,9 @@ export function RecipesPage() {
         const next = structuredClone(r)
         next.assets = [...(next.assets ?? []), asset]
         if (vars.cover) { next.metadata.image = asset.filename; next.metadata.thumbnail = asset.filename }
-        if (vars.target && vars.index != null) {
+        if (vars.target === 'comments' && vars.index != null && next.comments?.[vars.index]) {
+          next.comments[vars.index].assets = [...(next.comments[vars.index].assets ?? []), asset.id]
+        } else if (vars.target && vars.target !== 'comments' && vars.index != null) {
           const row = next.recipe[vars.target][vars.index] as { assets?: string[] }
           row.assets = [...(row.assets ?? []), asset.id]
         }
@@ -214,7 +232,7 @@ export function RecipesPage() {
         const a = next.assets.find((x) => x.id === aid)
         next.assets = next.assets.filter((x) => x.id !== aid)
         if (a && (next.metadata.image === a.filename || next.metadata.thumbnail === a.filename)) { next.metadata.image = ''; next.metadata.thumbnail = '' }
-        for (const row of [...next.recipe.ingredients, ...next.recipe.instructions]) row.assets = (row.assets ?? []).filter((x) => x !== aid && x !== a?.filename)
+        for (const row of [...next.recipe.ingredients, ...next.recipe.instructions, ...(next.comments ?? [])]) row.assets = (row.assets ?? []).filter((x) => x !== aid && x !== a?.filename)
         return next
       }
       setDraft((d) => (d ? strip(d) : d))
@@ -225,6 +243,21 @@ export function RecipesPage() {
     onError: (e) => toast.error((e as Error).message),
   })
   const pickPhoto = (t: typeof photoTarget) => { setPhotoTarget(t); photoInput.current?.click() }
+  const applyComments = (comments: Comment[]) => {
+    setDraft((d) => (d ? { ...d, comments } : d))
+    qc.setQueryData<Recipe>(['recipe', selected], (r) => (r ? { ...r, comments } : r))
+    qc.invalidateQueries({ queryKey: ['recipes'] })
+  }
+  const addComment = useMutation({
+    mutationFn: () => post<{ comments: Comment[] }>(`/api/v1/recipes/${encodeURIComponent(selected!)}/comments`, { text: commentText.trim(), rating: commentRating || null }),
+    onSuccess: (r) => { applyComments(r.comments); setCommentText(''); setCommentRating(0) },
+    onError: (e) => toast.error((e as Error).message),
+  })
+  const removeComment = useMutation({
+    mutationFn: (id: string) => del<{ comments: Comment[] }>(`/api/v1/recipes/${encodeURIComponent(selected!)}/comments/${id}`),
+    onSuccess: (r) => applyComments(r.comments),
+    onError: (e) => toast.error((e as Error).message),
+  })
 
   const running = state?.mode === 'Recipe'
 
@@ -339,6 +372,37 @@ export function RecipesPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Comments</CardTitle>
+            <CardDescription>How did it turn out? Ratings here roll up to the recipe list.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(d.comments ?? []).map((c, i) => (
+              <div key={c.id} className="space-y-1 rounded-lg bg-muted/50 p-3 text-sm">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="flex-1">{c.username ? `${c.username} · ` : ''}{c.date} {c.time}</span>
+                  {!!c.rating && <span className="flex items-center gap-0.5" aria-label={`${c.rating} stars`}>{Array.from({ length: c.rating }).map((_, k) => <Star key={k} className="size-3 fill-ember text-ember" />)}</span>}
+                  <button type="button" className="hover:text-foreground" aria-label="Add photo to comment" onClick={() => pickPhoto({ target: 'comments', index: i })}><ImageIcon className="size-3.5" /></button>
+                  <button type="button" className="hover:text-destructive" aria-label="Delete comment" onClick={() => removeComment.mutate(c.id)}><Trash2 className="size-3.5" /></button>
+                </div>
+                <div className="whitespace-pre-wrap">{c.text}</div>
+                <RowPhotos filename={d.filename} ids={c.assets} assets={d.assets} onOpen={setLightbox} />
+              </div>
+            ))}
+            <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (commentText.trim()) addComment.mutate() }}>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">Your rating</span>
+                <Stars value={commentRating} onChange={setCommentRating} />
+              </div>
+              <div className="flex gap-2">
+                <Input placeholder="Add a comment…" value={commentText} onChange={(e) => setCommentText(e.target.value)} aria-label="Comment" />
+                <Button type="submit" disabled={!commentText.trim() || addComment.isPending}>{addComment.isPending ? <Loader2 className="size-4 animate-spin" /> : 'Add'}</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
         <Dialog open={!!lightbox} onOpenChange={(o) => !o && setLightbox(null)}>
           <DialogContent className="max-w-3xl p-2">
             <DialogHeader className="sr-only"><DialogTitle>Photo</DialogTitle><DialogDescription>Recipe photo</DialogDescription></DialogHeader>
@@ -400,7 +464,10 @@ export function RecipesPage() {
               {assetIdOf(r.thumbnail) ? <img src={recipeAssetUrl(r.filename, assetIdOf(r.thumbnail)!, true)} alt="" className="size-10 rounded-lg object-cover" /> : <BookOpen className="size-5 text-ember" />}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{r.title}</div>
-                <div className="truncate text-xs text-muted-foreground">{r.description || (r.cook_time ? `${r.cook_time} min` : '')}{r.error ? ' · unreadable' : ''}</div>
+                <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+                  {r.comment_rating != null && <span className="flex items-center gap-0.5 text-ember"><Star className="size-3 fill-ember" /> {r.comment_rating}</span>}
+                  <span className="truncate">{r.description || (r.cook_time ? `${r.cook_time} min` : '')}{r.error ? ' · unreadable' : ''}</span>
+                </div>
               </div>
             </button>
           ))}

@@ -274,6 +274,32 @@ def recipe_delete(filename: str, _: auth.Principal = Depends(require_admin)):
 	return {'ok': True}
 
 
+class RecipeCommentBody(BaseModel):
+	text: str = Field(min_length=1, max_length=5000)
+	rating: int | None = Field(default=None, ge=0, le=5)
+	username: str = Field(default='', max_length=60)
+
+
+@router.post('/recipes/{filename}/comments')
+def recipe_comment(filename: str, body: RecipeCommentBody, _: auth.Principal = Depends(current_principal)):
+	try:
+		return {'comments': library.add_recipe_comment(filename, body.text, body.rating, body.username)}
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+
+
+@router.delete('/recipes/{filename}/comments/{comment_id}')
+def recipe_comment_delete(filename: str, comment_id: str, _: auth.Principal = Depends(current_principal)):
+	try:
+		return {'comments': library.delete_recipe_comment(filename, comment_id)}
+	except FileNotFoundError as e:
+		raise _nf(e)
+	except ValueError as e:
+		raise _bad(e)
+
+
 @router.get('/recipes/{filename}/assets/{asset_id}')
 def recipe_asset(filename: str, asset_id: str, thumb: bool = False, _: auth.Principal = Depends(current_principal)):
 	try:

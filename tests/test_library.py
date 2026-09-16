@@ -420,3 +420,29 @@ class TestMaintenance:
 			r = c.post('/api/v1/system/factory-reset', json={'confirm': 'RESET'}, headers=h)
 			assert r.status_code == 200 and r.json()['restart_required'] is True
 			assert c.get('/api/v1/hardware', headers=h).json()['current']['first_time_setup'] is True
+
+
+def test_recipe_comments_and_rating(settings, control):
+	name = library.create_recipe('Wings')
+	out = library.add_recipe_comment(name, 'Crispy!', 5, 'Pedro')
+	library.add_recipe_comment(name, 'A bit dry', 3)
+	assert out[0]['rating'] == 5 and out[0]['username'] == 'Pedro' and out[0]['date']
+	listed = [r for r in library.list_recipes() if r['filename'] == name][0]
+	assert listed['comment_rating'] == 4.0 and listed['comments'] == 2
+	photo = library.add_recipe_photo(name, _png(), target='comments', index=0)
+	assert library.read_recipe(name)['comments'][0]['assets'] == [photo['id']]
+	library.delete_recipe_comment(name, out[0]['id'])
+	assert len(library.read_recipe(name)['comments']) == 1
+	with pytest.raises(FileNotFoundError):
+		library.delete_recipe_comment(name, 'nope')
+	from server.app import create_app
+
+	with TestClient(create_app()) as c:
+		tok = c.post('/api/v1/auth/setup', json={'password': 'correct horse'}).json()['token']
+		h = {'Authorization': f'Bearer {tok}'}
+		r = c.post(f'/api/v1/recipes/{name}/comments', json={'text': 'Great', 'rating': 4}, headers=h)
+		assert r.status_code == 200 and len(r.json()['comments']) == 2
+		assert c.post(f'/api/v1/recipes/{name}/comments', json={'text': 'x', 'rating': 9}, headers=h).status_code == 422
+		cid = r.json()['comments'][-1]['id']
+		assert len(c.delete(f'/api/v1/recipes/{name}/comments/{cid}', headers=h).json()['comments']) == 1
+	library.delete_recipe(name)

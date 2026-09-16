@@ -9,6 +9,7 @@ const recipe = {
   filename: 'r.pfrecipe',
   metadata: { title: 'Ribs', description: '', author: 'Me', rating: 4, prep_time: 15, cook_time: 300, difficulty: 'Medium', units: 'F', food_probes: 2, image: 'c1.jpg', thumbnail: 'c1.jpg' },
   recipe: { ingredients: [{ name: 'Ribs', quantity: '2 racks', assets: ['p1'] }], instructions: [], steps: [] },
+  comments: [{ id: 'c1', username: 'Pedro', text: 'Crispy!', rating: 5, date: '2026-09-16', time: '12:00', assets: [] }],
   assets: [
     { id: 'c1', filename: 'c1.jpg', type: 'jpg' },
     { id: 'p1', filename: 'p1.jpg', type: 'jpg' },
@@ -37,10 +38,11 @@ beforeEach(() => {
 
 describe('RecipesPage', () => {
   it('lists recipes with cover thumbnails and offers import', async () => {
-    vi.stubGlobal('fetch', fetchFor({ '/api/v1/recipes': { recipes: [{ filename: 'r.pfrecipe', title: 'Ribs', description: 'Low and slow', thumbnail: 'c1.jpg' }] } }))
+    vi.stubGlobal('fetch', fetchFor({ '/api/v1/recipes': { recipes: [{ filename: 'r.pfrecipe', title: 'Ribs', description: 'Low and slow', thumbnail: 'c1.jpg', comment_rating: 4.5, comments: 2 }] } }))
     mount()
     expect(await screen.findByText('Ribs')).toBeInTheDocument()
     expect(screen.getByText('Import')).toBeInTheDocument()
+    expect(screen.getByText('4.5')).toBeInTheDocument()
     const img = document.querySelector('img')
     expect(img?.getAttribute('src')).toContain('/api/v1/recipes/r.pfrecipe/assets/c1?thumb=true')
   })
@@ -51,10 +53,12 @@ describe('RecipesPage', () => {
     fireEvent.click(await screen.findByText('Ribs'))
     await waitFor(() => expect(screen.getByDisplayValue('Me')).toBeInTheDocument())
     expect(screen.getByDisplayValue('300')).toBeInTheDocument()
-    expect(screen.getByLabelText('4 stars')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getAllByLabelText('4 stars', { selector: 'button' })[0]).toHaveAttribute('aria-checked', 'true')  // the recipe's own rating
     expect(screen.getByLabelText('Open cover photo')).toBeInTheDocument()
     expect(screen.getByLabelText('Download recipe')).toHaveAttribute('href', expect.stringContaining('/api/v1/recipes/r.pfrecipe/download'))
     const thumbs = Array.from(document.querySelectorAll('img')).map((i) => i.getAttribute('src'))
     expect(thumbs.some((s) => s?.includes('/assets/p1?thumb=true'))).toBe(true)
+    expect(screen.getByText('Crispy!')).toBeInTheDocument()
+    expect(screen.getByLabelText('5 stars', { selector: 'span' })).toBeInTheDocument()
   })
 })

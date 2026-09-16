@@ -416,8 +416,11 @@ def list_recipes() -> list[dict]:
 		if status != 'OK' or not isinstance(meta, dict):
 			out.append({'filename': p.name, 'title': p.stem, 'error': status})
 			continue
+		comments = _read_part(p, 'comments', []) or []
+		rated = [c.get('rating') for c in comments if isinstance(c, dict) and c.get('rating')]
 		out.append({
 			'filename': p.name, 'title': meta.get('title') or p.stem, 'author': meta.get('author', ''),
+			'comment_rating': round(sum(rated) / len(rated), 1) if rated else None, 'comments': len(comments),
 			'description': meta.get('description', ''), 'rating': meta.get('rating', 0), 'prep_time': meta.get('prep_time', 0),
 			'cook_time': meta.get('cook_time', 0), 'difficulty': meta.get('difficulty', ''), 'thumbnail': meta.get('thumbnail', ''),
 			'id': meta.get('id'), 'units': meta.get('units'),
@@ -483,13 +486,43 @@ def add_recipe_photo(filename: str, data: bytes, *, target: str | None = None, i
 		meta['image'] = asset['filename']
 		meta['thumbnail'] = asset['filename']
 		_write_part(path, 'metadata', meta)
-	if target in ('ingredients', 'instructions') and index is not None:
+	if target == 'comments' and index is not None:
+		comments = _read_part(path, 'comments', [])
+		if 0 <= index < len(comments):
+			comments[index].setdefault('assets', []).append(asset['id'])
+			_write_part(path, 'comments', comments)
+	elif target in ('ingredients', 'instructions') and index is not None:
 		rec = _read_part(path, 'recipe', {})
 		rows = rec.get(target, [])
 		if 0 <= index < len(rows):
 			rows[index].setdefault('assets', []).append(asset['id'])
 			_write_part(path, 'recipe', rec)
 	return asset
+
+
+def add_recipe_comment(filename: str, text: str, rating: int | None = None, username: str = '') -> list:
+	"""Append a comment (docs.pifire.io recipe format: text, rating 0-5, date/time, assets)."""
+	path = RECIPES_DIR / _safe(filename, '.pfrecipe')
+	comments = _read_part(path, 'comments', None)
+	if comments is None:
+		raise FileNotFoundError(filename)
+	now = datetime.datetime.now()
+	comments.append({'id': common.generate_uuid(), 'username': username[:60], 'text': text[:5000], 'rating': max(0, min(5, int(rating or 0))),
+					 'date': now.strftime('%Y-%m-%d'), 'time': now.strftime('%H:%M'), 'edited': '', 'assets': []})
+	_write_part(path, 'comments', comments)
+	return comments
+
+
+def delete_recipe_comment(filename: str, comment_id: str) -> list:
+	path = RECIPES_DIR / _safe(filename, '.pfrecipe')
+	comments = _read_part(path, 'comments', None)
+	if comments is None:
+		raise FileNotFoundError(filename)
+	keep = [c for c in comments if c.get('id') != comment_id]
+	if len(keep) == len(comments):
+		raise FileNotFoundError(comment_id)
+	_write_part(path, 'comments', keep)
+	return keep
 
 
 def delete_recipe_photo(filename: str, asset_id: str) -> None:
