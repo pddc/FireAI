@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.otf binary
+*.pickle binary
+*.joblib binary
+*.xcf binary

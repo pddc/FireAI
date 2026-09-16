@@ -60,21 +60,30 @@ def redis_client(_clean_redis):
 	return _clean_redis
 
 
+_REAL_SLEEP = __import__('time').sleep
+
+
 class FakeClock:
 	"""Deterministic replacement for time.time()/time.sleep().
 
 	``sleep`` advances the clock instead of blocking, so loops that pace
-	themselves with ``time.sleep`` run at full speed under test.
+	themselves with ``time.sleep`` run at full speed under test. It still
+	yields the GIL so a control loop running in a background thread
+	interleaves with the test thread.
 	"""
 
-	def __init__(self, start=1_700_000_000.0):
+	def __init__(self, start=1_700_000_000.0, min_tick=0.0, real_yield=0.0):
 		self.now = float(start)
+		self.min_tick = min_tick
+		self.real_yield = real_yield
 
 	def time(self):
 		return self.now
 
 	def sleep(self, seconds):
-		self.now += float(seconds)
+		self.now += max(float(seconds), self.min_tick)
+		# Yield for real so other threads (the test, pytest's reporter) get the GIL.
+		_REAL_SLEEP(self.real_yield)
 
 	def advance(self, seconds):
 		self.now += float(seconds)
@@ -104,3 +113,27 @@ def control(settings):
 	from common.common import read_control
 
 	return read_control(flush=True)
+
+
+@pytest.fixture
+def sim_settings(workdir):
+	"""Default settings pointed at the simulator platform + probes."""
+	from common.common import read_settings, write_settings
+	from tests.sim_harness import simulator_settings
+
+	s = simulator_settings(read_settings(init=True))
+	write_settings(s)
+	return s
+
+
+@pytest.fixture
+def harness(sim_settings, clock, monkeypatch):
+	"""A running control process on the simulator. Stopped at teardown."""
+	from tests.sim_harness import ControlHarness
+
+	# Coarser ticks + a real yield keep the control thread from starving pytest.
+	clock.min_tick = 0.2
+	clock.real_yield = 0.0005
+	h = ControlHarness(clock, monkeypatch).start()
+	yield h
+	h.stop()

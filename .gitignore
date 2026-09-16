@@ -103,3 +103,4 @@ ui-debug.log
 
 # Bridge credentials
 bridge/credentials.json
+.sim/
