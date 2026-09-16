@@ -13,7 +13,7 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { api, get } from '@/lib/api'
 import { useCommand } from '@/hooks/useCommand'
 
-interface DepView {
+export interface DepView {
   label: string
   help: string
   options: { value: string; label: string }[] | null
@@ -21,7 +21,7 @@ interface DepView {
   value: string
   hidden: boolean
 }
-interface ModuleView {
+export interface ModuleView {
   id: string
   friendly_name: string
   description: string
@@ -30,20 +30,20 @@ interface ModuleView {
   settings: Record<string, DepView>
   config?: { option_name: string; option_friendly_name: string; option_description: string; option_type: string; list_values?: unknown[]; list_labels?: string[]; default: unknown; value: unknown; hidden?: boolean }[]
 }
-interface Catalogue {
+export interface Catalogue {
   modules: { grillplatform: Record<string, ModuleView>; display: Record<string, ModuleView>; distance: Record<string, ModuleView> }
   boards: Record<string, { id: string; name: string; description: string; probe_devices: string[] }>
   current: { grillplatform: string; display: string; distance: string; units: string; real_hw: boolean; first_time_setup: boolean }
 }
 
-type Kind = 'grillplatform' | 'display' | 'distance'
-const KIND_LABEL: Record<Kind, { title: string; desc: string }> = {
+export type Kind = 'grillplatform' | 'display' | 'distance'
+export const KIND_LABEL: Record<Kind, { title: string; desc: string }> = {
   grillplatform: { title: 'Controller board', desc: 'Which PiFire board (or custom wiring) drives the relays and fan.' },
   display: { title: 'Display', desc: 'Screen and input hardware attached to the Pi.' },
   distance: { title: 'Pellet level sensor', desc: 'Distance sensor in the hopper lid, if any.' },
 }
 
-function ModuleSection({ kind, cat, selected, onSelect, values, onValue, config, onConfig, showAdvanced }: {
+export function ModuleSection({ kind, cat, selected, onSelect, values, onValue, config, onConfig, showAdvanced }: {
   kind: Kind
   cat: Catalogue
   selected: string
@@ -101,17 +101,15 @@ function ModuleSection({ kind, cat, selected, onSelect, values, onValue, config,
   )
 }
 
-/** Local-only hardware setup, replacing the legacy configuration wizard. */
-export function HardwarePage() {
+/** Catalogue + draft selections + save, shared by Settings → Hardware and the first-run wizard. */
+export function useHardwareForm(opts: { boardMapDefault?: boolean } = {}) {
   const qc = useQueryClient()
-  const { run } = useCommand()
   const cat = useQuery({ queryKey: ['hardware'], queryFn: () => get<Catalogue>('/api/v1/hardware') })
   const [sel, setSel] = useState<Record<Kind, string>>({ grillplatform: '', display: '', distance: '' })
   const [vals, setVals] = useState<Record<Kind, Record<string, string>>>({ grillplatform: {}, display: {}, distance: {} })
   const [cfg, setCfg] = useState<Record<string, unknown>>({})
   const [units, setUnits] = useState('F')
-  const [useBoardMap, setUseBoardMap] = useState(false)
-  const [advanced, setAdvanced] = useState(false)
+  const [useBoardMap, setUseBoardMap] = useState(!!opts.boardMapDefault)
   const [result, setResult] = useState<{ reboot_required: boolean } | null>(null)
 
   useEffect(() => {
@@ -144,8 +142,29 @@ export function HardwarePage() {
     onError: (e) => toast.error((e as Error).message),
   })
 
-  if (!cat.data || !sel.grillplatform) return <Loader2 className="size-5 animate-spin text-muted-foreground" />
-  const board = cat.data.boards[sel.grillplatform]
+  const sectionProps = (kind: Kind, showAdvanced: boolean) => ({
+    kind,
+    cat: cat.data!,
+    selected: sel[kind],
+    onSelect: (id: string) => { setSel({ ...sel, [kind]: id }); setVals({ ...vals, [kind]: {} }); if (kind === 'display') setCfg({}) },
+    values: vals[kind],
+    onValue: (name: string, v: string) => setVals({ ...vals, [kind]: { ...vals[kind], [name]: v } }),
+    config: cfg,
+    onConfig: (name: string, v: unknown) => setCfg({ ...cfg, [name]: v }),
+    showAdvanced,
+  })
+
+  return { cat, sel, units, setUnits, useBoardMap, setUseBoardMap, result, save, sectionProps, ready: !!cat.data && !!sel.grillplatform }
+}
+
+/** Local-only hardware setup, replacing the legacy configuration wizard. */
+export function HardwarePage() {
+  const { run } = useCommand()
+  const { cat, sel, units, setUnits, useBoardMap, setUseBoardMap, result, save, sectionProps, ready } = useHardwareForm()
+  const [advanced, setAdvanced] = useState(false)
+
+  if (!ready) return <Loader2 className="size-5 animate-spin text-muted-foreground" />
+  const board = cat.data!.boards[sel.grillplatform]
 
   return (
     <div className="space-y-4">
@@ -171,18 +190,7 @@ export function HardwarePage() {
       )}
 
       {(['grillplatform', 'display', 'distance'] as Kind[]).map((kind) => (
-        <ModuleSection
-          key={kind}
-          kind={kind}
-          cat={cat.data!}
-          selected={sel[kind]}
-          onSelect={(id) => { setSel({ ...sel, [kind]: id }); setVals({ ...vals, [kind]: {} }); if (kind === 'display') setCfg({}) }}
-          values={vals[kind]}
-          onValue={(name, v) => setVals({ ...vals, [kind]: { ...vals[kind], [name]: v } })}
-          config={cfg}
-          onConfig={(name, v) => setCfg({ ...cfg, [name]: v })}
-          showAdvanced={advanced}
-        />
+        <ModuleSection key={kind} {...sectionProps(kind, advanced)} />
       ))}
 
       <Card>

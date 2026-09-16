@@ -40,6 +40,16 @@ def put_hardware(body: HardwareSelection, _: auth.Principal = Depends(require_ad
 	return result
 
 
+@router.post('/hardware/wizard/dismiss')
+def dismiss_wizard(_: auth.Principal = Depends(require_admin)):
+	"""Skip the first-run wizard (PiFire's wizard 'cancel')."""
+	s = common.read_settings()
+	s['globals']['first_time_setup'] = False
+	common.write_settings(s)
+	core_state.invalidate_settings_cache()
+	return {'ok': True}
+
+
 # ----- tuner -------------------------------------------------------------
 
 

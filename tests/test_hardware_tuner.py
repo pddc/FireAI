@@ -153,3 +153,17 @@ class TestBluetooth:
 			assert r.status_code == 200 and r.json()['sections'][0]['title'] == 'Python'
 			r = c.get('/api/v1/bluetooth/diagnostics?format=text', headers=h)
 			assert r.headers['content-type'].startswith('text/plain')
+
+
+def test_wizard_dismiss_clears_first_time_setup(settings, control):
+	from server.app import create_app
+
+	s = common.read_settings()
+	s['globals']['first_time_setup'] = True
+	common.write_settings(s)
+	with TestClient(create_app()) as c:
+		tok = c.post('/api/v1/auth/setup', json={'password': 'correct horse'}).json()['token']
+		h = {'Authorization': f'Bearer {tok}'}
+		assert c.get('/api/v1/hardware', headers=h).json()['current']['first_time_setup'] is True
+		assert c.post('/api/v1/hardware/wizard/dismiss', headers=h).status_code == 200
+		assert c.get('/api/v1/hardware', headers=h).json()['current']['first_time_setup'] is False

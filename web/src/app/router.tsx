@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, type RouteObject } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { get } from '@/lib/api'
 import { AppShell } from './layout/AppShell'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { LoginPage, SetupPage } from '@/features/auth/AuthPages'
@@ -89,6 +91,16 @@ const shellChildren: RouteObject[] = [
   { path: 'settings/:section', element: <SettingsSectionPage /> },
 ]
 
+const SetupWizardPage = lazy(() => import('@/features/settings/SetupWizardPage').then((m) => ({ default: m.SetupWizardPage })))
+
+/** After sign-in, a grill that has never been configured goes to the guided wizard (settings.globals.first_time_setup). */
+function FirstRunGate() {
+  const location = useLocation()
+  const q = useQuery({ queryKey: ['hardware'], queryFn: () => get<{ current: { first_time_setup: boolean } }>('/api/v1/hardware'), staleTime: 60_000 })
+  if (q.data?.current.first_time_setup && location.pathname !== '/setup/hardware') return <Navigate to="/setup/hardware" replace />
+  return <Outlet />
+}
+
 const DebugWidgets = lazy(() => import('@/features/DebugWidgets').then((m) => ({ default: m.DebugWidgets })))
 
 const localRoutes: RouteObject[] = [
@@ -97,7 +109,15 @@ const localRoutes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
   {
     element: <LocalAuthGate />,
-    children: [{ path: '/', element: <AppShell />, children: [...shellChildren, { path: '*', element: <Navigate to="/" replace /> }] }],
+    children: [
+      {
+        element: <FirstRunGate />,
+        children: [
+          { path: '/setup/hardware', element: lazyEl(<SetupWizardPage />) },
+          { path: '/', element: <AppShell />, children: [...shellChildren, { path: '*', element: <Navigate to="/" replace /> }] },
+        ],
+      },
+    ],
   },
 ]
 
