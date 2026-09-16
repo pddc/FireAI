@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, ChevronLeft, Loader2, Play, Plus, Save, Trash2, ArrowUp, ArrowDown, FastForward } from 'lucide-react'
+import { BookOpen, ChevronLeft, Loader2, Play, Plus, Save, Trash2, ArrowUp, ArrowDown, FastForward, Camera, Download, Upload, Star, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { api, get, post } from '@/lib/api'
+import { api, del, downloadUrl, get, post, upload } from '@/lib/api'
+import { cn } from '@/lib/utils'
+import { assetIdOf } from '@/features/cooks/CookDetailPage'
 import { useCommand } from '@/hooks/useCommand'
 import { useGrillState } from '@/stores/grill'
 import { IS_CLOUD } from '@/lib/mode'
@@ -25,10 +27,16 @@ interface Step {
   message: string
   pause: boolean
 }
+interface Asset {
+  id: string
+  filename: string
+  type: string
+}
 interface Recipe {
   filename: string
-  metadata: { title: string; description: string; author: string; rating: number; prep_time: number; cook_time: number; difficulty: string; units: string; food_probes: number }
-  recipe: { ingredients: { name: string; quantity: string }[]; instructions: { text: string; step: number }[]; steps: Step[] }
+  metadata: { title: string; description: string; author: string; rating: number; prep_time: number; cook_time: number; difficulty: string; units: string; food_probes: number; image?: string; thumbnail?: string }
+  recipe: { ingredients: { name: string; quantity: string; assets?: string[] }[]; instructions: { text: string; step: number; assets?: string[] }[]; steps: Step[] }
+  assets: Asset[]
 }
 interface Summary {
   filename: string
@@ -36,7 +44,41 @@ interface Summary {
   description: string
   cook_time: number
   difficulty: string
+  thumbnail?: string
   error?: string
+}
+
+const DIFFICULTIES = ['Easy', 'Medium', 'Hard']
+
+export function recipeAssetUrl(filename: string, assetId: string, thumb = false) {
+  return downloadUrl(`/api/v1/recipes/${encodeURIComponent(filename)}/assets/${assetId}?thumb=${thumb}`)
+}
+
+function Stars({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-0.5" role="radiogroup" aria-label="Rating">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => onChange(n)}>
+          <Star className={cn('size-5', n <= value ? 'fill-ember text-ember' : 'text-muted-foreground')} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Thumbnails attached to an ingredient or instruction row. */
+function RowPhotos({ filename, ids, assets, onOpen }: { filename: string; ids: string[] | undefined; assets: Asset[]; onOpen: (a: Asset) => void }) {
+  const rows = (ids ?? []).map((id) => assets.find((a) => a.id === id || a.filename === id)).filter((a): a is Asset => !!a)
+  if (!rows.length) return null
+  return (
+    <div className="flex flex-wrap gap-1.5 pl-8">
+      {rows.map((a) => (
+        <button key={a.id} type="button" onClick={() => onOpen(a)} aria-label="Open photo">
+          <img src={recipeAssetUrl(filename, a.id, true)} alt="" className="size-12 rounded-md object-cover" loading="lazy" />
+        </button>
+      ))}
+    </div>
+  )
 }
 
 const blankStep = (food: number): Step => ({ mode: 'Hold', trigger_temps: { primary: 0, food: Array(food).fill(0) }, hold_temp: 225, timer: 0, notify: false, message: '', pause: false })
@@ -95,6 +137,10 @@ export function RecipesPage() {
   const recipe = useQuery({ queryKey: ['recipe', selected], queryFn: () => get<Recipe>(`/api/v1/recipes/${encodeURIComponent(selected!)}`), enabled: !!selected })
   const [draft, setDraft] = useState<Recipe | null>(null)
   const [confirmRun, setConfirmRun] = useState(false)
+  const [lightbox, setLightbox] = useState<Asset | null>(null)
+  const photoInput = useRef<HTMLInputElement>(null)
+  const importInput = useRef<HTMLInputElement>(null)
+  const [photoTarget, setPhotoTarget] = useState<{ target?: 'ingredients' | 'instructions'; index?: number; cover?: boolean }>({})
   const units = state?.units ?? 'F'
   const foodLabels = state?.probes.filter((p) => p.type === 'Food' && p.enabled).map((p) => p.name) ?? ['Probe 1', 'Probe 2']
 
@@ -115,11 +161,70 @@ export function RecipesPage() {
     onSuccess: () => { toast.success('Recipe saved'); qc.invalidateQueries({ queryKey: ['recipes'] }); qc.invalidateQueries({ queryKey: ['recipe'] }) },
     onError: (e) => toast.error((e as Error).message),
   })
-  const del = useMutation({
+  const remove = useMutation({
     mutationFn: (fn: string) => api(`/api/v1/recipes/${encodeURIComponent(fn)}`, { method: 'DELETE' }),
     onSuccess: () => { setSelected(null); qc.invalidateQueries({ queryKey: ['recipes'] }) },
     onError: (e) => toast.error((e as Error).message),
   })
+  const importRecipe = useMutation({
+    mutationFn: (file: File) => upload<{ filename: string }>('/api/v1/recipes/import', file),
+    onSuccess: (r) => { toast.success('Recipe imported'); qc.invalidateQueries({ queryKey: ['recipes'] }); setSelected(r.filename) },
+    onError: (e) => toast.error((e as Error).message),
+  })
+  // Photos are written to the file immediately; the draft is patched in place so unsaved edits survive.
+  const addPhoto = useMutation({
+    mutationFn: ({ file, target, index, cover }: { file: File } & typeof photoTarget) => {
+      const q = new URLSearchParams()
+      if (target && index != null) { q.set('target', target); q.set('index', String(index)) }
+      if (cover) q.set('cover', 'true')
+      return upload<Asset>(`/api/v1/recipes/${encodeURIComponent(selected!)}/assets?${q}`, file)
+    },
+    onSuccess: (asset, vars) => {
+      setDraft((d) => {
+        if (!d) return d
+        const next = structuredClone(d)
+        next.assets = [...(next.assets ?? []), asset]
+        if (vars.cover) { next.metadata.image = asset.filename; next.metadata.thumbnail = asset.filename }
+        if (vars.target && vars.index != null) {
+          const row = next.recipe[vars.target][vars.index] as { assets?: string[] }
+          row.assets = [...(row.assets ?? []), asset.id]
+        }
+        return next
+      })
+      qc.setQueryData<Recipe>(['recipe', selected], (r) => {
+        if (!r) return r
+        const next = structuredClone(r)
+        next.assets = [...(next.assets ?? []), asset]
+        if (vars.cover) { next.metadata.image = asset.filename; next.metadata.thumbnail = asset.filename }
+        if (vars.target && vars.index != null) {
+          const row = next.recipe[vars.target][vars.index] as { assets?: string[] }
+          row.assets = [...(row.assets ?? []), asset.id]
+        }
+        return next
+      })
+      qc.invalidateQueries({ queryKey: ['recipes'] })
+    },
+    onError: (e) => toast.error((e as Error).message),
+  })
+  const removePhoto = useMutation({
+    mutationFn: (aid: string) => del(`/api/v1/recipes/${encodeURIComponent(selected!)}/assets/${aid}`),
+    onSuccess: (_, aid) => {
+      const strip = (r: Recipe) => {
+        const next = structuredClone(r)
+        const a = next.assets.find((x) => x.id === aid)
+        next.assets = next.assets.filter((x) => x.id !== aid)
+        if (a && (next.metadata.image === a.filename || next.metadata.thumbnail === a.filename)) { next.metadata.image = ''; next.metadata.thumbnail = '' }
+        for (const row of [...next.recipe.ingredients, ...next.recipe.instructions]) row.assets = (row.assets ?? []).filter((x) => x !== aid && x !== a?.filename)
+        return next
+      }
+      setDraft((d) => (d ? strip(d) : d))
+      qc.setQueryData<Recipe>(['recipe', selected], (r) => (r ? strip(r) : r))
+      qc.invalidateQueries({ queryKey: ['recipes'] })
+      setLightbox(null)
+    },
+    onError: (e) => toast.error((e as Error).message),
+  })
+  const pickPhoto = (t: typeof photoTarget) => { setPhotoTarget(t); photoInput.current?.click() }
 
   const running = state?.mode === 'Recipe'
 
@@ -133,21 +238,40 @@ export function RecipesPage() {
     const d = draft
     const dirty = JSON.stringify(draft) !== JSON.stringify(recipe.data)
     const setStep = (i: number, s: Step) => setDraft({ ...d, recipe: { ...d.recipe, steps: d.recipe.steps.map((x, j) => (j === i ? s : x)) } })
+    const setMeta = (m: Partial<Recipe['metadata']>) => setDraft({ ...d, metadata: { ...d.metadata, ...m } })
+    const coverId = assetIdOf(d.metadata.image || d.metadata.thumbnail)
     return (
       <div className="space-y-4">
+        <input ref={photoInput} type="file" accept="image/*" className="hidden" data-testid="recipe-photo-input" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) addPhoto.mutate({ file: f, ...photoTarget }) }} />
         <div className="flex items-start gap-2">
           <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={() => setSelected(null)}><ChevronLeft className="size-4" /></Button>
           <div className="flex-1 space-y-1">
-            <Input className="text-lg font-semibold" value={d.metadata.title} placeholder="Recipe title" onChange={(e) => setDraft({ ...d, metadata: { ...d.metadata, title: e.target.value } })} />
-            <Input value={d.metadata.description} placeholder="Short description" onChange={(e) => setDraft({ ...d, metadata: { ...d.metadata, description: e.target.value } })} />
+            <Input className="text-lg font-semibold" value={d.metadata.title} placeholder="Recipe title" onChange={(e) => setMeta({ title: e.target.value })} />
+            <Input value={d.metadata.description} placeholder="Short description" onChange={(e) => setMeta({ description: e.target.value })} />
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="Delete" onClick={() => del.mutate(d.filename)}><Trash2 className="size-4 text-destructive" /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Download recipe" nativeButton={false} render={<a href={downloadUrl(`/api/v1/recipes/${encodeURIComponent(d.filename)}/download`)} download />}><Download className="size-4" /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Delete" onClick={() => remove.mutate(d.filename)}><Trash2 className="size-4 text-destructive" /></Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setConfirmRun(true)} disabled={running || dirty}><Play className="size-4" /> Run recipe</Button>
           {dirty && <Button variant="outline" onClick={() => save.mutate(d)} disabled={save.isPending}>{save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save</Button>}
           {running && <Button variant="outline" onClick={() => run('recipe.continue', undefined, { success: 'Continuing' })}><FastForward className="size-4" /> Continue paused step</Button>}
         </div>
+
+        <Card>
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row">
+            <button type="button" className="relative flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted sm:w-56" aria-label={coverId ? 'Open cover photo' : 'Add cover photo'} onClick={() => (coverId ? setLightbox(d.assets.find((a) => a.id === coverId) ?? null) : pickPhoto({ cover: true }))} disabled={addPhoto.isPending}>
+              {coverId ? <img src={recipeAssetUrl(d.filename, coverId)} alt="" className="size-full object-cover" /> : addPhoto.isPending ? <Loader2 className="size-6 animate-spin text-muted-foreground" /> : <span className="flex flex-col items-center gap-1 text-xs text-muted-foreground"><Camera className="size-6" /> Add cover photo</span>}
+            </button>
+            <div className="grid flex-1 grid-cols-2 gap-3 text-sm">
+              <label className="col-span-2 space-y-1"><span className="text-xs text-muted-foreground">Author</span><Input value={d.metadata.author} onChange={(e) => setMeta({ author: e.target.value })} /></label>
+              <label className="space-y-1"><span className="text-xs text-muted-foreground">Prep time (min)</span><Input type="number" min={0} value={d.metadata.prep_time} onChange={(e) => setMeta({ prep_time: Number(e.target.value) })} /></label>
+              <label className="space-y-1"><span className="text-xs text-muted-foreground">Cook time (min)</span><Input type="number" min={0} value={d.metadata.cook_time} onChange={(e) => setMeta({ cook_time: Number(e.target.value) })} /></label>
+              <label className="space-y-1"><span className="text-xs text-muted-foreground">Difficulty</span><NativeSelect value={d.metadata.difficulty} onValueChange={(difficulty) => setMeta({ difficulty })} options={DIFFICULTIES.map((x) => ({ value: x, label: x }))} /></label>
+              <div className="space-y-1"><span className="text-xs text-muted-foreground">Rating</span><Stars value={d.metadata.rating} onChange={(rating) => setMeta({ rating })} /></div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader className="pb-2">
@@ -181,13 +305,17 @@ export function RecipesPage() {
           <CardHeader className="pb-2"><CardTitle className="text-base">Ingredients</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {d.recipe.ingredients.map((ing, i) => (
-              <div key={i} className="flex gap-2">
-                <Input className="w-28" placeholder="Qty" value={ing.quantity} onChange={(e) => setDraft({ ...d, recipe: { ...d.recipe, ingredients: d.recipe.ingredients.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)) } })} />
-                <Input placeholder="Ingredient" value={ing.name} onChange={(e) => setDraft({ ...d, recipe: { ...d.recipe, ingredients: d.recipe.ingredients.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) } })} />
-                <Button variant="ghost" size="icon-sm" aria-label="Remove" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, ingredients: d.recipe.ingredients.filter((_, j) => j !== i) } })}><Trash2 className="size-4" /></Button>
+              <div key={i} className="space-y-1">
+                <div className="flex gap-2">
+                  <Input className="w-28" placeholder="Qty" value={ing.quantity} onChange={(e) => setDraft({ ...d, recipe: { ...d.recipe, ingredients: d.recipe.ingredients.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)) } })} />
+                  <Input placeholder="Ingredient" value={ing.name} onChange={(e) => setDraft({ ...d, recipe: { ...d.recipe, ingredients: d.recipe.ingredients.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) } })} />
+                  <Button variant="ghost" size="icon-sm" aria-label="Add ingredient photo" disabled={dirty} title={dirty ? 'Save first' : undefined} onClick={() => pickPhoto({ target: 'ingredients', index: i })}><ImageIcon className="size-4" /></Button>
+                  <Button variant="ghost" size="icon-sm" aria-label="Remove" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, ingredients: d.recipe.ingredients.filter((_, j) => j !== i) } })}><Trash2 className="size-4" /></Button>
+                </div>
+                <RowPhotos filename={d.filename} ids={ing.assets} assets={d.assets} onOpen={setLightbox} />
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, ingredients: [...d.recipe.ingredients, { name: '', quantity: '' }] } })}><Plus className="size-4" /> Add ingredient</Button>
+            <Button variant="outline" size="sm" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, ingredients: [...d.recipe.ingredients, { name: '', quantity: '', assets: [] }] } })}><Plus className="size-4" /> Add ingredient</Button>
           </CardContent>
         </Card>
 
@@ -195,15 +323,34 @@ export function RecipesPage() {
           <CardHeader className="pb-2"><CardTitle className="text-base">Instructions</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {d.recipe.instructions.map((ins, i) => (
-              <div key={i} className="flex gap-2">
-                <span className="mt-2 w-6 text-sm text-muted-foreground">{i + 1}.</span>
-                <textarea className="min-h-16 flex-1 rounded-lg border bg-background p-2 text-sm" value={ins.text} onChange={(e) => setDraft({ ...d, recipe: { ...d.recipe, instructions: d.recipe.instructions.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) } })} />
-                <Button variant="ghost" size="icon-sm" aria-label="Remove" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, instructions: d.recipe.instructions.filter((_, j) => j !== i) } })}><Trash2 className="size-4" /></Button>
+              <div key={i} className="space-y-1">
+                <div className="flex gap-2">
+                  <span className="mt-2 w-6 text-sm text-muted-foreground">{i + 1}.</span>
+                  <textarea className="min-h-16 flex-1 rounded-lg border bg-background p-2 text-sm" value={ins.text} onChange={(e) => setDraft({ ...d, recipe: { ...d.recipe, instructions: d.recipe.instructions.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) } })} />
+                  <div className="flex flex-col">
+                    <Button variant="ghost" size="icon-sm" aria-label="Add instruction photo" disabled={dirty} title={dirty ? 'Save first' : undefined} onClick={() => pickPhoto({ target: 'instructions', index: i })}><ImageIcon className="size-4" /></Button>
+                    <Button variant="ghost" size="icon-sm" aria-label="Remove" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, instructions: d.recipe.instructions.filter((_, j) => j !== i) } })}><Trash2 className="size-4" /></Button>
+                  </div>
+                </div>
+                <RowPhotos filename={d.filename} ids={ins.assets} assets={d.assets} onOpen={setLightbox} />
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, instructions: [...d.recipe.instructions, { text: '', step: 0 }] } })}><Plus className="size-4" /> Add instruction</Button>
+            <Button variant="outline" size="sm" onClick={() => setDraft({ ...d, recipe: { ...d.recipe, instructions: [...d.recipe.instructions, { text: '', step: 0, assets: [] }] } })}><Plus className="size-4" /> Add instruction</Button>
           </CardContent>
         </Card>
+
+        <Dialog open={!!lightbox} onOpenChange={(o) => !o && setLightbox(null)}>
+          <DialogContent className="max-w-3xl p-2">
+            <DialogHeader className="sr-only"><DialogTitle>Photo</DialogTitle><DialogDescription>Recipe photo</DialogDescription></DialogHeader>
+            {lightbox && <img src={recipeAssetUrl(d.filename, lightbox.id)} alt="" className="max-h-[75vh] w-full rounded-lg object-contain" />}
+            {lightbox && (
+              <DialogFooter className="flex-row justify-end gap-2 px-2 pb-2">
+                {lightbox.id !== coverId && <Button variant="outline" size="sm" onClick={() => { setMeta({ image: lightbox.filename, thumbnail: lightbox.filename }); setLightbox(null) }}><Star className="size-4" /> Use as cover</Button>}
+                <Button variant="destructive" size="sm" onClick={() => removePhoto.mutate(lightbox.id)} disabled={removePhoto.isPending}><Trash2 className="size-4" /> Delete photo</Button>
+              </DialogFooter>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={confirmRun} onOpenChange={setConfirmRun}>
           <DialogContent>
@@ -228,7 +375,11 @@ export function RecipesPage() {
           <h1 className="text-xl font-semibold tracking-tight">Recipes</h1>
           <p className="text-sm text-muted-foreground">Programs the grill can run on its own: start, smoke, hold to a probe temperature, shut down.</p>
         </div>
-        <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending}><Plus className="size-4" /> New</Button>
+        <div className="flex gap-2">
+          <input ref={importInput} type="file" accept=".pfrecipe,application/zip" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) importRecipe.mutate(f) }} />
+          <Button variant="outline" size="sm" onClick={() => importInput.current?.click()} disabled={importRecipe.isPending}>{importRecipe.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} Import</Button>
+          <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending}><Plus className="size-4" /> New</Button>
+        </div>
       </div>
       {running && state && (
         <Card>
@@ -246,7 +397,7 @@ export function RecipesPage() {
         <div className="overflow-hidden rounded-xl border bg-card">
           {list.data.recipes.map((r, i) => (
             <button key={r.filename} type="button" onClick={() => setSelected(r.filename)} className={`flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted ${i > 0 ? 'border-t' : ''}`}>
-              <BookOpen className="size-5 text-ember" />
+              {assetIdOf(r.thumbnail) ? <img src={recipeAssetUrl(r.filename, assetIdOf(r.thumbnail)!, true)} alt="" className="size-10 rounded-lg object-cover" /> : <BookOpen className="size-5 text-ember" />}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{r.title}</div>
                 <div className="truncate text-xs text-muted-foreground">{r.description || (r.cook_time ? `${r.cook_time} min` : '')}{r.error ? ' · unreadable' : ''}</div>
