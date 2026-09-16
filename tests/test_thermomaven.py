@@ -90,7 +90,7 @@ def report(meat=1650, ambient=2250, areas=None, battery=80, status='online', dev
 	if areas is not None:
 		probe['areaTemperature'] = areas
 	msg = {'cmdType': 'WT10:status:report',
-		   'cmdData': {'globalStatus': status, 'batteryValue': 90, 'rssi': -60, 'probes': [probe]}}
+		   'cmdData': {'globalStatus': status, 'batteryValue': 90, 'wifiRssi': -60, 'probes': [probe]}}
 	if device_id:
 		msg['deviceId'] = device_id
 	return json.dumps(msg)
@@ -107,9 +107,9 @@ class TestDeviceParsing:
 
 	def test_area_temperatures(self, clock):
 		d = device()
-		d.handle_message('device/WT10/123/pub', report(areas=[1000, 1100, 1200]))
+		d.handle_message('device/WT10/123/pub', report(areas=[1000, 1100, 1200, 1300, 1400]))
 		v = d.get_port_values_f()
-		assert v['P1_AREA1'] == 100.0 and v['P1_AREA3'] == 120.0 and v['P1_AREA4'] is None
+		assert v['P1_AREA1'] == 100.0 and v['P1_AREA3'] == 120.0 and v['P1_AREA5'] == 140.0
 
 	def test_offline_report_yields_none(self, clock):
 		d = device()

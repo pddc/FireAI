@@ -39,7 +39,7 @@ Ports per probe *n*:
 |---|---|
 | `Pn_MEAT` | internal (tip) temperature |
 | `Pn_AMBIENT` | ambient sensor on the probe — can be used as the **Primary** pit probe |
-| `Pn_AREA1..4` | zone temperatures along the probe, when the device reports them |
+| `Pn_AREA1..5` | zone temperatures along the probe, tip to handle |
 
 Notes:
 

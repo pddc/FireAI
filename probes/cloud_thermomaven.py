@@ -17,7 +17,7 @@ Description:
   Ports (per probe n = 1..num_probes):
       P{n}_MEAT     internal / tip temperature  (curTemperature)
       P{n}_AMBIENT  ambient sensor on the probe  (curAmbientTemperature)
-      P{n}_AREA1..4 zone temperatures along the probe (areaTemperature[]), if reported
+      P{n}_AREA1..5 zone temperatures along the probe (areaTemperature[]), tip to handle
 
   Ex Device Definition:
 
@@ -359,7 +359,7 @@ class ThermoMavenDevice:
 		now = at or time.time()
 		with self._lock:
 			self.device_battery = cmd_data.get('batteryValue', self.device_battery)
-			self.rssi = cmd_data.get('rssi', self.rssi)
+			self.rssi = cmd_data.get('wifiRssi', cmd_data.get('rssi', self.rssi))
 			online = cmd_data.get('globalStatus', 'online') == 'online'
 			self.device_online = online
 			for index, probe in enumerate(cmd_data.get('probes', []) or []):
@@ -393,7 +393,7 @@ class ThermoMavenDevice:
 				values[f'P{n}_MEAT'] = r['meat_f'] if fresh else None
 				values[f'P{n}_AMBIENT'] = r['ambient_f'] if fresh else None
 				areas = r['areas_f'] if fresh else []
-				for a in range(1, 5):
+				for a in range(1, 6):
 					values[f'P{n}_AREA{a}'] = areas[a - 1] if len(areas) >= a else None
 		return values
 

@@ -3618,7 +3618,7 @@
       "cloud_thermomaven": {
         "friendly_name": "Cloud - ThermoMaven (G1 / G2 / G4 / P-series)",
         "filename": "cloud_thermomaven",
-        "description": "Reads ThermoMaven wireless thermometers (G1, G2, G4, P1, P2, P4) through the ThermoMaven cloud, the same way the official app does. The base station must be on WiFi and paired to your ThermoMaven account. Requires internet access; readings are reported as unavailable while offline. Each probe exposes a MEAT (tip) port and an AMBIENT port, plus up to four AREA zone ports if the device reports them. The AMBIENT port can be used as the Primary (pit) probe. Uses an unofficial API (see docs).",
+        "description": "Reads ThermoMaven wireless thermometers (G1, G2, G4, P1, P2, P4) through the ThermoMaven cloud, the same way the official app does. The base station must be on WiFi and paired to your ThermoMaven account. Requires internet access; readings are reported as unavailable while offline. Each probe exposes a MEAT (tip) port and an AMBIENT port, plus five AREA zone ports (tip to handle) if the device reports them. The AMBIENT port can be used as the Primary (pit) probe. Uses an unofficial API (see docs).",
         "image": "default.png",
         "default": false,
         "reboot_required": false,
@@ -3636,7 +3636,8 @@
             "P1_AREA1",
             "P1_AREA2",
             "P1_AREA3",
-            "P1_AREA4"
+            "P1_AREA4",
+            "P1_AREA5"
           ],
           "config": [
             {
