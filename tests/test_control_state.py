@@ -59,3 +59,20 @@ def test_errors_and_warnings_roundtrip(control):
 	assert common.read_errors(flush=True) == []
 	common.write_warning('careful')
 	assert 'careful' in common.read_warnings()
+
+
+def test_dashboard_prefs_follow_units_and_hidden_cards(settings):
+	from core.state import dashboard_prefs
+
+	settings['dashboard']['dashboards']['Default']['custom']['hidden_cards'] = ['Probe2', 'timer']
+	settings['dashboard']['dashboards']['Default']['config']['max_primary_temp_C'] = 350
+	settings['globals']['units'] = 'F'
+	prefs = dashboard_prefs(settings)
+	assert prefs['hidden_cards'] == ['Probe2', 'timer']
+	assert prefs['max_primary_temp'] == 600 and prefs['max_food_temp'] == 300
+	settings['globals']['units'] = 'C'
+	assert dashboard_prefs(settings)['max_primary_temp'] == 350
+
+
+def test_eta_calculation_default_on():
+	assert common.default_settings()['globals']['eta_calculation'] is True

@@ -27,7 +27,7 @@ export function ProbeCard({ state, probe, size = 'md' }: Props) {
   const temp = isPrimary ? state.temps.primary[probe.label] : state.temps.food[probe.label]
   const notify = state.notify.find((n): n is NotifyEntry => n.label === probe.label && n.type === 'probe')
   const target = isPrimary && state.mode === 'Hold' ? state.setpoint : notify?.req ? notify.target : null
-  const max = state.units === 'F' ? (isPrimary ? 600 : 300) : isPrimary ? 315 : 150
+  const max = isPrimary ? state.dashboard?.max_primary_temp ?? (state.units === 'F' ? 600 : 315) : state.dashboard?.max_food_temp ?? (state.units === 'F' ? 300 : 150)
   const min = state.units === 'F' ? 0 : -20
   const statusBucket = isPrimary ? state.probe_status.P : state.probe_status.F
   const devStatus = (statusBucket?.[probe.label]?.status ?? {}) as { connected?: boolean; battery_percentage?: number | null; last_report?: number }

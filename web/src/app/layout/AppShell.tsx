@@ -108,7 +108,7 @@ export function AppShell() {
                 <ModeBadge />
               </div>
             </div>
-            <TimerPill />
+            {!state?.dashboard?.hidden_cards?.includes('timer') && <TimerPill />}
             <div className="lg:hidden flex items-center gap-1">
               <ConnectionDot />
               <ThemeToggle />

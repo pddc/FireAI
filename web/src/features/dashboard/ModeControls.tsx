@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Flame, Cloud, Thermometer, Power, Eye, Wrench, Loader2, Square, RotateCcw, Sparkles } from 'lucide-react'
+import { Flame, Cloud, Thermometer, Power, Eye, Wrench, Loader2, Square, RotateCcw, Sparkles, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -93,12 +93,26 @@ export function ModeControls({ state }: Props) {
           )}
         </div>
 
-        {(mode === 'Smoke' || mode === 'Hold') && (
+        {(mode === 'Smoke' || mode === 'Hold' || mode === 'Startup' || mode === 'Reignite') && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+            {mode !== 'Hold' && state.p_mode != null && (
+              <div className="flex items-center gap-1" title="P-Mode: each level adds 10 s of auger-off time in Smoke and Startup. Higher = more smoke, cooler pit.">
+                <Label className="mr-1 text-sm">P-Mode</Label>
+                <Button variant="outline" size="icon-sm" aria-label="Lower P-Mode" disabled={isBusy || state.p_mode <= 0} onClick={() => run('pmode', { pmode: state.p_mode! - 1 }, { success: `P-Mode ${state.p_mode! - 1}` })}>
+                  <Minus className="size-3.5" />
+                </Button>
+                <span className="w-5 text-center font-semibold tabular" data-testid="pmode-value">{state.p_mode}</span>
+                <Button variant="outline" size="icon-sm" aria-label="Raise P-Mode" disabled={isBusy || state.p_mode >= 9} onClick={() => run('pmode', { pmode: state.p_mode! + 1 }, { success: `P-Mode ${state.p_mode! + 1}` })}>
+                  <Plus className="size-3.5" />
+                </Button>
+              </div>
+            )}
+            {mode !== 'Startup' && mode !== 'Reignite' && (
             <label className="flex items-center gap-2">
               <Switch checked={state.smoke_plus} onCheckedChange={(c) => run('smoke_plus', { enabled: c })} />
               <Label className="text-sm">Smoke+</Label>
             </label>
+            )}
             {mode === 'Hold' && (
               <Button variant={state.lid_open.detected ? 'default' : 'outline'} size="sm" onClick={() => run('lid_open.toggle')} disabled={isBusy}>
                 {state.lid_open.detected ? 'Resume' : 'Lid open'}

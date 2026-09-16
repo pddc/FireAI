@@ -87,6 +87,7 @@ export interface GrillState {
   pwm_control: boolean
   duty_cycle: number | null
   p_mode: number | null
+  dashboard: { hidden_cards: string[]; max_primary_temp: number; max_food_temp: number }
   outputs: Outputs
   timer: Timer
   lid_open: { detected: boolean; end_time: number }

@@ -124,6 +124,7 @@ def default_settings():
 		'global_control_panel' : False,  # Set to True to display control panel on most pages (except Updater, Wizard, Cookfile and some other pages)
 		'boot_to_monitor' : False,  # Set to True to boot directly into monitor mode
 		'prime_ignition' : False,  # Set to True to enable the igniter in prime & startup mode
+		'eta_calculation' : True,  # Estimate time-to-target for probe notifications
 		'updated_message' : False,   # Set to True to display a pop-up message after the system has been updated 
 		'venv' : True,  # Set to True if running in virtual environment (needed for Raspberry Pi OS Bookworm)
 		'python_exec' : '.venv/bin/python',  # Path to the python executable

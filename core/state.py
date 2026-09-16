@@ -48,6 +48,18 @@ def probe_meta(settings: dict) -> list[dict]:
 	]
 
 
+def dashboard_prefs(settings: dict) -> dict:
+	"""Card visibility and gauge ranges (PiFire's Default dashboard config), so every client renders alike."""
+	dash = settings.get('dashboard', {}).get('dashboards', {}).get('Default', {})
+	cfg = dash.get('config', {})
+	units = settings['globals']['units']
+	return {
+		'hidden_cards': list(dash.get('custom', {}).get('hidden_cards', [])),
+		'max_primary_temp': cfg.get(f'max_primary_temp_{units}', 600 if units == 'F' else 300),
+		'max_food_temp': cfg.get(f'max_food_temp_{units}', 300 if units == 'F' else 150),
+	}
+
+
 def snapshot() -> dict:
 	"""Everything the dashboard shows, in one document."""
 	settings = cached_settings()
@@ -96,6 +108,7 @@ def snapshot() -> dict:
 		'pwm_control': control.get('pwm_control', False),
 		'duty_cycle': control.get('duty_cycle'),
 		'p_mode': status.get('p_mode'),
+		'dashboard': dashboard_prefs(settings),
 		'outputs': status.get('outpins', {}),
 		'timer': control.get('timer', {}),
 		'lid_open': {'detected': status.get('lid_open_detected', False), 'end_time': status.get('lid_open_endtime', 0)},

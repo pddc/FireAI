@@ -16,6 +16,7 @@ export function makeState(overrides: Partial<GrillState> = {}): GrillState {
     smoke_plus: false,
     pwm_control: false,
     duty_cycle: 100,
+    dashboard: { hidden_cards: [], max_primary_temp: 600, max_food_temp: 300 },
     p_mode: 2,
     outputs: { auger: false, fan: false, igniter: false, power: false },
     timer: { start: 0, paused: 0, end: 0, shutdown: false },

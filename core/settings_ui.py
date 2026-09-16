@@ -75,7 +75,11 @@ GENERAL = Section('general', 'General', 'wrench', 'Name, units and dashboard pre
 		Field('globals.debug_mode', 'Debug logging', 'toggle', 'Verbose logs for troubleshooting. Restart the control process to apply.', advanced=True, restart='control'),
 	]),
 	Group('Dashboard', [
-		Field('dashboard.current', 'Dashboard layout', 'select', 'Layout used by the legacy web UI.', options=_opts(('Default', 'Default'), ('Basic', 'Basic')), advanced=True),
+		Field('globals.eta_calculation', 'Estimate time to target', 'toggle', 'Show an ETA on probe cards that have a target temperature.'),
+		Field('dashboard.dashboards.Default.config.max_primary_temp_F', 'Pit gauge maximum (°F)', 'number', min=200, max=1000, step=10, visible_if={'globals.units': ['F']}),
+		Field('dashboard.dashboards.Default.config.max_food_temp_F', 'Food gauge maximum (°F)', 'number', min=100, max=600, step=10, visible_if={'globals.units': ['F']}),
+		Field('dashboard.dashboards.Default.config.max_primary_temp_C', 'Pit gauge maximum (°C)', 'number', min=100, max=600, step=5, visible_if={'globals.units': ['C']}),
+		Field('dashboard.dashboards.Default.config.max_food_temp_C', 'Food gauge maximum (°C)', 'number', min=50, max=300, step=5, visible_if={'globals.units': ['C']}),
 		Field('history_page.minutes', 'Graph window', 'number', 'Minutes of history shown by default on the graph.', min=1, max=480, step=1, unit='min'),
 		Field('history_page.datapoints', 'Graph data points', 'number', 'Maximum points drawn per series.', min=10, max=2000, step=10, advanced=True),
 		Field('history_page.clearhistoryonstart', 'Clear history on startup', 'toggle', 'Start every cook with an empty graph.'),

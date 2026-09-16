@@ -35,6 +35,18 @@ describe('ModeControls', () => {
     expect(screen.getByText('Smoke+')).toBeInTheDocument()
   })
 
+  it('steps the P-Mode while smoking', async () => {
+    render(<ModeControls state={makeState({ mode: 'Smoke', p_mode: 2 })} />)
+    expect(screen.getByTestId('pmode-value')).toHaveTextContent('2')
+    fireEvent.click(screen.getByLabelText('Raise P-Mode'))
+    await waitFor(() => expect(command).toHaveBeenCalledWith('pmode', { pmode: 3 }))
+  })
+
+  it('hides P-Mode while holding', () => {
+    render(<ModeControls state={makeState({ mode: 'Hold', p_mode: 2 })} />)
+    expect(screen.queryByTestId('pmode-value')).not.toBeInTheDocument()
+  })
+
   it('offers re-ignite in error mode', () => {
     render(<ModeControls state={makeState({ mode: 'Error' })} />)
     expect(screen.getByText('Re-ignite')).toBeInTheDocument()
