@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, Users, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText, CircuitBoard, SlidersHorizontal, BookOpen } from 'lucide-react'
+import { ChevronRight, Smartphone, Users, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText, CircuitBoard, SlidersHorizontal, BookOpen } from 'lucide-react'
 import { IS_CLOUD } from '@/lib/mode'
 
 const SECTIONS = [
+  { to: 'app', label: 'App', desc: 'Theme, install, notifications on this device', icon: Smartphone },
   { to: 'members', label: 'Members', desc: 'Who can see and control this grill', icon: Users, cloudOnly: true },
   { to: 'cloud', label: 'Cloud', desc: 'Pairing, remote control, monitoring', icon: Cloud, localOnly: true },
   { to: 'general', label: 'General', desc: 'Name, units, theme, dashboard', icon: Wrench },

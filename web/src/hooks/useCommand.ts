@@ -14,11 +14,13 @@ export function useCommand() {
     async (name: string, args?: Record<string, unknown>, opts: { success?: string } = {}) => {
       setBusy(name)
       try {
+        navigator.vibrate?.(15)
         const r = await command(name, args)
         if (opts.success) toast.success(opts.success)
         return r
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : (e as Error).message
+        navigator.vibrate?.([40, 40, 40])
         toast.error(msg || 'Command failed')
         throw e
       } finally {

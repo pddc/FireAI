@@ -11,26 +11,25 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024 },
       includeAssets: ['icons/*.png', 'icons/*.svg'],
       manifest: {
         name: 'FireAI',
         short_name: 'FireAI',
         description: 'Pellet smoker controller',
-        theme_color: '#0b0b0d',
-        background_color: '#0b0b0d',
+        theme_color: '#1a1917',
+        background_color: '#1a1917',
         display: 'standalone',
+        categories: ['food', 'utilities'],
         orientation: 'portrait',
         start_url: '/',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        navigateFallbackDenylist: [/^\/api\//, /^\/ws\//, /^\/docs/, /^\/openapi\.json/],
-        runtimeCaching: [
-          { urlPattern: /^\/api\/v1\/(state|history|events)/, handler: 'NetworkOnly' },
         ],
       },
     }),

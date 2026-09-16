@@ -24,6 +24,7 @@ export function DashboardPage() {
   const state = useGrillState()
   const status = useConnection()
   const lastError = useGrill((s) => s.lastError)
+  const staleSince = useGrill((s) => s.staleSince)
 
   if (!state) {
     return status === 'offline' ? (
@@ -55,11 +56,13 @@ export function DashboardPage() {
           <AlertDescription>{e}</AlertDescription>
         </Alert>
       ))}
-      {status === 'offline' && (
+      {(status === 'offline' || staleSince) && (
         <Alert>
           <WifiOff className="size-4" />
-          <AlertTitle>Reconnecting…</AlertTitle>
-          <AlertDescription>Showing the last known state.</AlertDescription>
+          <AlertTitle>{status === 'offline' ? 'Grill offline' : 'Connecting…'}</AlertTitle>
+          <AlertDescription>
+            Showing the last known state{staleSince ? ` from ${new Date(staleSince).toLocaleString()}` : ''}. Controls are disabled until the grill is reachable.
+          </AlertDescription>
         </Alert>
       )}
 
