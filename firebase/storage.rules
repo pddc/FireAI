@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Cook photos and archives. Members of the grill can read; the bridge and
+    // members can write within size/type limits. Membership is mirrored into
+    // custom claims? No - Storage rules cannot read Firestore, so the bridge
+    // token carries the grill id and members write through the app with a
+    // per-grill ownership check done via Firestore-backed claims at pairing.
+    match /grills/{grillId}/{allPaths=**} {
+      allow read: if request.auth != null
+                  && (request.auth.token.grill == grillId || grillId in request.auth.token.grills);
+      allow write: if request.auth != null
+                   && (request.auth.token.grill == grillId || grillId in request.auth.token.grills)
+                   && request.resource.size < 20 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/zip');
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "grills": {
+      "$grillId": {
+        // Bridge identity: custom token with claims {bridge: true, grill: <id>}.
+        // Member identity: user token with claim grills: {<id>: role}.
+        "state": {
+          ".read": "auth != null && (auth.token.grill === $grillId || auth.token.grills[$grillId] != null)",
+          ".write": "auth != null && auth.token.bridge === true && auth.token.grill === $grillId"
+        },
+        "presence": {
+          ".read": "auth != null && (auth.token.grill === $grillId || auth.token.grills[$grillId] != null)",
+          ".write": "auth != null && auth.token.bridge === true && auth.token.grill === $grillId"
+        },
+        "bridge": {
+          ".read": "auth != null && (auth.token.grill === $grillId || auth.token.grills[$grillId] != null)",
+          ".write": "auth != null && auth.token.bridge === true && auth.token.grill === $grillId"
+        },
+        "events": {
+          ".read": "auth != null && (auth.token.grill === $grillId || auth.token.grills[$grillId] != null)",
+          ".write": "auth != null && auth.token.bridge === true && auth.token.grill === $grillId"
+        },
+        "notifications": {
+          ".read": "auth != null && (auth.token.grill === $grillId || auth.token.grills[$grillId] != null)",
+          ".write": "auth != null && auth.token.bridge === true && auth.token.grill === $grillId"
+        },
+        "commands": {
+          // Members may read (to watch ack/done). Only the bridge may write, and only
+          // the status fields: creation happens through the sendCommand callable (admin SDK).
+          ".read": "auth != null && (auth.token.grill === $grillId || auth.token.grills[$grillId] != null)",
+          "$cmdId": {
+            ".write": "auth != null && auth.token.bridge === true && auth.token.grill === $grillId && data.exists()",
+            ".validate": "newData.hasChildren(['name', 'uid', 'createdAt', 'nonce', 'status'])",
+            "name": { ".validate": "newData.val() === data.val()" },
+            "args": { ".validate": true },
+            "uid": { ".validate": "newData.val() === data.val()" },
+            "createdAt": { ".validate": "newData.val() === data.val()" },
+            "nonce": { ".validate": "newData.val() === data.val()" },
+            "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'acked' || newData.val() === 'done' || newData.val() === 'failed' || newData.val() === 'rejected')" },
+            "ackedAt": { ".validate": "newData.isNumber()" },
+            "doneAt": { ".validate": "newData.isNumber()" },
+            "error": { ".validate": "newData.isString()" },
+            "result": { ".validate": true },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    }
+  }
+}

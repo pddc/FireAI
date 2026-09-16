@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isBridge(grillId) {
+      return signedIn() && ('bridge' in request.auth.token) && request.auth.token.bridge == true && request.auth.token.grill == grillId;
+    }
+    function grillDoc(grillId) { return get(/databases/$(database)/documents/grills/$(grillId)); }
+    function memberRole(grillId) {
+      return grillDoc(grillId).data.members[request.auth.uid];
+    }
+    function isMember(grillId) {
+      return signedIn() && grillDoc(grillId).data.members[request.auth.uid] != null;
+    }
+    function isOwner(grillId) {
+      return signedIn() && memberRole(grillId) == 'owner';
+    }
+
+    // Users: private profile. FCM tokens are stored here.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Pairing handshake documents are only touched by Cloud Functions.
+    match /pairing/{code} {
+      allow read, write: if false;
+    }
+
+    match /grills/{grillId} {
+      allow read: if isMember(grillId) || isBridge(grillId);
+      // Owners may rename / manage members but never change ownerUid.
+      allow update: if isOwner(grillId)
+                    && request.resource.data.ownerUid == resource.data.ownerUid
+                    && request.resource.data.members[resource.data.ownerUid] == 'owner';
+      allow create, delete: if false; // via functions only
+
+      // Settings mirror: written by the bridge only; cloud edits go through settings.patch commands.
+      match /settings/{doc} {
+        allow read: if isMember(grillId) || isBridge(grillId);
+        allow write: if isBridge(grillId);
+      }
+
+      // Cooks: bridge streams samples and metadata; members can edit notes/title and delete.
+      match /cooks/{cookId} {
+        allow read: if isMember(grillId) || isBridge(grillId);
+        allow create: if isBridge(grillId);
+        allow update: if isBridge(grillId)
+                      || (isMember(grillId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'notes', 'rating', 'photos', 'updatedAt']));
+        allow delete: if isOwner(grillId);
+
+        match /samples/{chunkId} {
+          allow read: if isMember(grillId) || isBridge(grillId);
+          allow write: if isBridge(grillId);
+        }
+      }
+
+      match /recipes/{recipeId} {
+        allow read: if isMember(grillId) || isBridge(grillId);
+        allow write: if isMember(grillId) || isBridge(grillId);
+      }
+
+      match /pellets/{doc} {
+        allow read: if isMember(grillId) || isBridge(grillId);
+        allow write: if isBridge(grillId);
+      }
+    }
+  }
+}

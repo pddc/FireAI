@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "cooks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "startedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

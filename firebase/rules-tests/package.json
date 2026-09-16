@@ -1,0 +1,14 @@
+{
+  "name": "fireai-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:emu": "cd .. && firebase emulators:exec --only database,firestore --project fireai-dev \"cd rules-tests && npx vitest run\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.0",
+    "firebase": "^11.0.0",
+    "vitest": "^3.0.0"
+  }
+}
