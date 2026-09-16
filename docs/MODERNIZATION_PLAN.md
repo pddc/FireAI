@@ -239,3 +239,24 @@ Hardware / Tuner / App. The audit found these gaps, all closed the same day:
 
 Deliberately not ported: the Flex/on-device display UI is unchanged (runs on the Pi's screen), Pi-side
 "dashboard themes" beyond card visibility, and the legacy `/api` v1 JSON API (replaced by `/api/v1`).
+
+## 10. Upstream sync log
+
+FireAI forked from nebhead/PiFire at `4fb3ee3` (v1.10.x). Reviewed `upstream/development` through `ec1c850`
+(2026-09-13, v1.11.0 build 19) on 2026-09-16 and brought over everything that applies:
+
+| Upstream | FireAI |
+|---|---|
+| Bleak-based `bt_ibbq_alt`, `bt_meater_alt`, `bt_igrill_alt` probes | added as-is + manifest entries |
+| PCB 4.x.x relay/fan defaults, ILI9488 name fix, DSI encoder support (`pyky040`) | manifest + `display/dsi_800x480t.py` |
+| Flex display dashes when stopped; pygame audio suppression | cherry-picked; `SDL_AUDIODRIVER=dummy` in supervisor |
+| Redis resiliency (`ResilientRedisClient`, JSON decode defaults, queue error handling) | in `core/redis_client.py` + `common/` |
+| Measured temperature in grill error notifications; hopper-low suppressed in Stop | cherry-picked |
+| ETA on/off setting | equivalent `globals.eta_calculation` already added |
+| Installer unblocks Bluetooth (`rfkill`) | `deploy/install.sh` |
+| Default dashboard shows dashes when stopped | `ProbeCard` |
+| Fan PID setting, bleak BT scanning, `_init_controller` hold-mode fix, SPI device selection, MAX31865 fix | already in the fork base |
+
+Not applicable: Flask settings/navbar/dash template tweaks, `updater.py` branch pruning, `*.N` log gitignore
+(FireAI logs live in `data/logs` outside the repo), version bumps. Re-run `git cherry main upstream/development`
+after each upstream release; the manifest must be merged semantically (FireAI's copy is re-indented).
