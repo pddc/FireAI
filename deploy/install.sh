@@ -16,7 +16,7 @@ FIREAI_ROOT=${FIREAI_ROOT:-/opt/fireai}
 DATA_DIR=$FIREAI_ROOT/data
 VENV=$FIREAI_ROOT/venv
 # Set FIREAI_REPO to your GitHub repo (owner/name or full URL) when installing from releases.
-REPO=${FIREAI_REPO:-https://github.com/CHANGE-ME/fireai}
+REPO=${FIREAI_REPO:-https://github.com/pddc/FireAI}
 FROM_DIR=""
 UPGRADE=0
 for arg in "$@"; do

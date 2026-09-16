@@ -27,7 +27,7 @@ from common import common
 from core.redis_client import get_redis
 
 STATUS_KEY = 'updater:status'
-DEFAULT_REPO = os.environ.get('FIREAI_REPO', '').replace('https://github.com/', '') or 'CHANGE-ME/fireai'
+DEFAULT_REPO = os.environ.get('FIREAI_REPO', '').replace('https://github.com/', '') or 'pddc/FireAI'
 ROOT = Path(os.environ.get('FIREAI_ROOT', '/opt/fireai'))
 
 

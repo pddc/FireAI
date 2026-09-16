@@ -44,7 +44,7 @@ probe and display drivers stay; everything around them is new.
 ## Install on a Raspberry Pi
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/fireai/main/deploy/install.sh | FIREAI_REPO=<owner>/fireai bash
+curl -fsSL https://raw.githubusercontent.com/pddc/FireAI/main/deploy/install.sh | bash
 ```
 
 Then open `http://<pi-ip>/`, set the admin password, and go to **Settings → Hardware** to pick your
