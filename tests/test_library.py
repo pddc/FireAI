@@ -309,3 +309,33 @@ def test_photo_endpoints(cookdir, settings, control):
 		d = c.get(f'/api/v1/recipes/{rn}/download', headers=h)
 		assert c.post('/api/v1/recipes/import', files={'file': (rn, d.content, 'application/zip')}, headers=h).status_code == 201
 		assert len(c.get('/api/v1/recipes', headers=h).json()['recipes']) == 2
+
+
+def test_metrics_rows_and_csv(settings, control):
+	common.write_metrics(flush=True)
+	m = common.default_metrics()
+	m.update({'mode': 'Startup', 'starttime': 1_700_000_000_000, 'endtime': 1_700_000_240_000, 'augerontime': 60, 'fanontime': 240, 'p_mode': 2})
+	common.write_metrics(m, new_metric=True)
+	m['starttime'] = 1_700_000_000_000  # new_metric stamps starttime with "now" (in place); rewrite the record with the fixed time
+	common.write_metrics(m)
+	m2 = common.default_metrics()
+	m2.update({'mode': 'Hold', 'starttime': 1_700_000_240_000, 'endtime': 0, 'augerontime': 10})
+	common.write_metrics(m2, new_metric=True)
+	m2['starttime'] = 1_700_000_240_000
+	common.write_metrics(m2)
+	rows = library.cook_metrics()
+	assert [r['mode'] for r in rows] == ['Startup', 'Hold']
+	assert rows[0]['duration_s'] == 240 and rows[0]['auger_pct'] == 25.0
+	assert rows[0]['est_usage_g'] == round(60 * settings['globals']['augerrate'])
+	assert rows[1]['endtime'] is None and rows[1]['auger_pct'] is None
+	csv_text = library.metrics_csv(rows)
+	assert csv_text.splitlines()[0].startswith('mode,starttime,endtime,duration_s')
+	assert csv_text.splitlines()[1].startswith('Startup,2023-')
+	from server.app import create_app
+
+	with TestClient(create_app()) as c:
+		tok = c.post('/api/v1/auth/setup', json={'password': 'correct horse'}).json()['token']
+		h = {'Authorization': f'Bearer {tok}'}
+		assert len(c.get('/api/v1/metrics', headers=h).json()['metrics']) == 2
+		r = c.get('/api/v1/metrics.csv', headers=h)
+		assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv')

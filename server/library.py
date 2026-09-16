@@ -327,6 +327,18 @@ async def recipe_import(file: UploadFile = File(...), _: auth.Principal = Depend
 # ----- logs / system -----------------------------------------------------
 
 
+@router.get('/metrics')
+def metrics(_: auth.Principal = Depends(current_principal)):
+	"""Per-mode metrics for the current/last cook (auger and fan time, pellet estimate, P-Mode, Smart Start...)."""
+	return {'metrics': library.cook_metrics()}
+
+
+@router.get('/metrics.csv')
+def metrics_csv(_: auth.Principal = Depends(current_principal)):
+	return Response(content=library.metrics_csv(library.cook_metrics()), media_type='text/csv',
+					headers={'Content-Disposition': 'attachment; filename="fireai-metrics.csv"'})
+
+
 @router.get('/logs')
 def logs(_: auth.Principal = Depends(current_principal)):
 	return {'logs': library.list_logs()}

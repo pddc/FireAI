@@ -17,6 +17,7 @@ const CooksPage = lazy(() => import('@/features/cooks/CooksPage').then((m) => ({
 const CookDetailPage = lazy(() => import('@/features/cooks/CookDetailPage').then((m) => ({ default: m.CookDetailPage })))
 const PelletsPage = lazy(() => import('@/features/pellets/PelletsPage').then((m) => ({ default: m.PelletsPage })))
 const EventsPage = lazy(() => import('@/features/settings/EventsPage').then((m) => ({ default: m.EventsPage })))
+const MetricsPage = lazy(() => import('@/features/settings/MetricsPage').then((m) => ({ default: m.MetricsPage })))
 const SystemPage = lazy(() => import('@/features/settings/SystemPage').then((m) => ({ default: m.SystemPage })))
 const RecipesPage = lazy(() => import('@/features/recipes/RecipesPage').then((m) => ({ default: m.RecipesPage })))
 const HardwarePage = lazy(() => import('@/features/settings/HardwarePage').then((m) => ({ default: m.HardwarePage })))
@@ -81,6 +82,7 @@ const shellChildren: RouteObject[] = [
     { path: 'settings/cloud', element: lazyEl(<CloudPage />) },
     { path: 'settings/probes', element: lazyEl(<ProbesPage />) },
     { path: 'settings/system', element: lazyEl(<SystemPage />) },
+    { path: 'settings/metrics', element: lazyEl(<MetricsPage />) },
     { path: 'settings/hardware', element: lazyEl(<HardwarePage />) },
     { path: 'settings/tuner', element: lazyEl(<TunerPage />) },
   ]),

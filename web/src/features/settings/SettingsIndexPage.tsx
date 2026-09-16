@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, Smartphone, Users, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText, CircuitBoard, SlidersHorizontal, BookOpen } from 'lucide-react'
+import { ChevronRight, Smartphone, Users, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText, CircuitBoard, SlidersHorizontal, BookOpen, BarChart3 } from 'lucide-react'
 import { IS_CLOUD } from '@/lib/mode'
 
 const SECTIONS = [
@@ -16,6 +16,7 @@ const SECTIONS = [
   { to: 'notifications', label: 'Notifications', desc: 'Pushover, Apprise, MQTT, WLED…', icon: Bell },
   { to: 'safety', label: 'Safety', desc: 'Limits, re-ignite, manual overrides', icon: Shield },
   { to: 'events', label: 'Events & logs', desc: 'What happened, when', icon: ScrollText },
+  { to: 'metrics', label: 'Cook metrics', desc: 'Auger, fan and pellet use per mode', icon: BarChart3, localOnly: true },
   { to: 'hardware', label: 'Hardware', desc: 'Board, display, pellet sensor', icon: CircuitBoard, localOnly: true },
   { to: 'system', label: 'System', desc: 'Info, backup, restart, power', icon: Cpu, localOnly: true },
 ]

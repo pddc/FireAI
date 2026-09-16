@@ -509,6 +509,49 @@ def import_recipe(data: bytes) -> str:
 
 
 # --------------------------------------------------------------------------
+# Metrics
+# --------------------------------------------------------------------------
+
+METRIC_COLUMNS = ('mode', 'starttime', 'endtime', 'duration_s', 'augerontime', 'auger_pct', 'est_usage_g', 'fanontime', 'smokeplus',
+				  'primary_setpoint', 'p_mode', 'auger_cycle_time', 'smart_start_profile', 'startup_temp', 'pellet_level_start',
+				  'pellet_level_end', 'pellet_brand_type')
+
+
+def cook_metrics() -> list[dict]:
+	"""The control loop's per-mode metrics for the current (or last) cook, with derived duration, auger duty and pellet usage."""
+	settings = common.read_settings()
+	rate = float(settings['globals'].get('augerrate', 0.3))
+	out = []
+	for m in common.read_metrics(all=True):
+		start, end = m.get('starttime', 0) or 0, m.get('endtime', 0) or 0
+		duration = (end - start) / 1000 if start and end else None
+		auger = float(m.get('augerontime', 0) or 0)
+		row = {k: m.get(k) for k in METRIC_COLUMNS if k in m}
+		row.update({
+			'mode': m.get('mode', ''), 'starttime': start, 'endtime': end or None, 'duration_s': duration,
+			'augerontime': round(auger, 1), 'auger_pct': round(100 * auger / duration, 1) if duration else None,
+			'est_usage_g': round(auger * rate), 'fanontime': round(float(m.get('fanontime', 0) or 0), 1),
+		})
+		out.append(row)
+	return out
+
+
+def metrics_csv(rows: list[dict]) -> str:
+	import csv
+
+	buf = io.StringIO()
+	w = csv.DictWriter(buf, fieldnames=list(METRIC_COLUMNS), extrasaction='ignore', lineterminator=chr(10))
+	w.writeheader()
+	for r in rows:
+		r = dict(r)
+		for k in ('starttime', 'endtime'):
+			if r.get(k):
+				r[k] = datetime.datetime.fromtimestamp(r[k] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+		w.writerow(r)
+	return buf.getvalue()
+
+
+# --------------------------------------------------------------------------
 # Logs
 # --------------------------------------------------------------------------
 
