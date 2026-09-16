@@ -15,7 +15,7 @@ Both need a credential. Nothing is reachable without one — a freshly installed
 | Credential | How to get it | How to send it |
 |---|---|---|
 | Session token (JWT, 30 days) | `POST /api/v1/auth/login {"password": "..."}` → `{token}` | `Authorization: Bearer <token>` or `?token=` |
-| API key (`fireai_…`) | **Settings → System → API keys** (or `POST /api/v1/auth/api-keys`) | `X-API-Key: <key>`, `Authorization: Bearer <key>` or `?api_key=<key>` |
+| API key (`fireai_…`) | **Settings → System → API keys** (or `POST /api/v1/auth/api-keys`) | `X-API-Key: <key>`, `Authorization: Bearer <key>`, `?api_key=<key>`, or HTTP Basic with any user name and the key as password |
 
 API keys have a role: **viewer** (reads), **operator** (reads + cook control), **admin** (everything, including
 settings and restart/reboot). Only a hash is stored on the grill; the key is shown once when created. Revoke

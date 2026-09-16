@@ -72,6 +72,8 @@ simulator), `cd firebase/functions && npm test`, and rules tests via
 - [Cloud pairing and the security model](docs/CLOUD.md)
 - [Hardware: boards, probes, ThermoMaven](docs/HARDWARE.md)
 - [Local-only operation](docs/LOCAL.md)
+- [Using the app](docs/USAGE.md)
+- [Coming from PiFire: what is the same, what changed, migrating](docs/FROM_PIFIRE.md)
 - [API: PiFire-compatible and /api/v1, API keys](docs/API.md)
 
 ## License

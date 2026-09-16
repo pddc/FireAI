@@ -114,6 +114,10 @@ class TestApiKeys:
 		assert anon.get('/api/get/mode', headers={'X-API-Key': key}).status_code == 201
 		assert anon.get(f'/api/get/mode?api_key={key}').status_code == 201
 		assert anon.get('/api/set/mode/monitor', headers={'Authorization': f'Bearer {key}'}).status_code == 201
+		import base64
+
+		basic = base64.b64encode(f'grill:{key}'.encode()).decode()
+		assert anon.get('/api/get/mode', headers={'Authorization': f'Basic {basic}'}).status_code == 201
 		# operator keys cannot run cmd or POST settings
 		assert anon.get('/api/cmd/restart', headers={'X-API-Key': key}).status_code == 403
 		assert anon.post('/api/settings', json={}, headers={'X-API-Key': key}).status_code == 403
