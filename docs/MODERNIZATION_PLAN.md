@@ -1,6 +1,6 @@
 # Modernization Plan
 
-Status: **approved direction** (2026-09-16)
+Status: **approved direction** (2026-09-16), revised after code review the same day (see §9)
 Origin: hard fork of [nebhead/PiFire](https://github.com/nebhead/PiFire) v1.10.x (MIT). No upstream merge-ability required; this project becomes its own entity.
 
 ## Decisions taken
@@ -129,63 +129,64 @@ Storage
 
 ---
 
-## 4. Phases
+## 4. Phases (revised 2026-09-16 after code review)
 
-Effort is calendar weeks, one developer part-time with AI assistance.
+Vertical slices, each shippable. Effort is calendar weeks, one developer part-time with AI assistance.
+A usable new dashboard lands at the end of slice B (~week 3).
 
-### Phase 0 — Foundation (1–2 wks)
-Deliverable: the stack runs on a dev machine with simulated hardware; CI is green.
-- [ ] Rename repo/package (placeholder: keep `PiFire` name in code until Phase 5; brand decision pending).
-- [ ] `docker-compose.dev.yml`: Redis + `control.py` with `grillplat/prototype.py` + `probes/prototype.py`.
-- [ ] `pytest` baseline: PID controllers, `deep_update`, settings upgrade/downgrade, `process_command` happy paths, cook-file round-trip, recipe unit conversion.
-- [ ] GitHub Actions: ruff + pytest (+ web build/test from Phase 3).
+### Slice A — Foundation (1–2 wks)
+Deliverable: the whole stack runs on a laptop with simulated hardware; a simulated cook runs in seconds under pytest; CI is green.
+- [x] Rename to **FireAI**; `pyproject.toml`; `core/redis_client.py` with `FIREAI_FAKE_REDIS` for in-process fakeredis.
+- [x] pytest harness (isolated workdir, fake Redis) + baseline tests: settings, control state, commands, history, PID controllers.
+- [ ] Make `control.py` importable: wrap module-level code in `main()`; inject a clock (`time.time`/`time.sleep`) so tests run accelerated. **This is the only structural change to control.py.** Work-cycle logic is not edited.
+- [ ] Golden simulated-cook tests: startup→smoke→hold→shutdown, startup failure → reignite, over-temp → error, lid-open pause, prime, manual. These are the regression guard for everything after.
+- [ ] `scripts/simulate.py`: runs control + API in one process on fakeredis for local dev; `docker-compose.dev.yml` (Redis) for the multi-process layout.
+- [ ] GitHub Actions: ruff + pytest (+ web build/test from slice B). Un-ignore `test_*.py` in `.gitignore`.
 - [ ] Quick fixes: remove `uuid` dep, dedupe `SocketIO`, remove hardcoded paths, disable legacy updater.
-- [ ] **ThermoMaven G1 driver** (`probes/cloud_thermomaven.py`): port the login/sign/cert/MQTT client from `thermomaven-ha`; run paho-mqtt in a background thread that feeds a `temp_queue` per probe (same shape as `bt_ibbq.py`); map `probes[]` to PiFire probe ports (up to 4 per G1); expose battery/RSSI as probe status; reconnect with backoff and mark probes disconnected on auth/MQTT failure. Register in `wizard/wizard_manifest.json` + `probes/probes.json`; credentials + region entered in the wizard, stored write-only. Add `cryptography` to requirements.
+- [ ] **ThermoMaven G1 driver** (`probes/cloud_thermomaven.py`): port login/sign/cert/MQTT from `thermomaven-ha`; paho-mqtt in a background thread feeding a `temp_queue` per probe (same shape as `bt_ibbq.py`); up to 4 probes per G1; battery/RSSI as probe status; connect with timeouts in the background so a missing internet connection never delays control startup; register in wizard manifest + `probes/probes.json`; credentials write-only.
 
-### Phase 1 — Core split + local API (2–3 wks)
-Deliverable: authenticated FastAPI with OpenAPI spec and push-based state; legacy Flask still serves the old UI.
-- [ ] Split `common/common.py` → `core/*` behaviour-preserving (tests guard). Replace `from common import *`.
-- [ ] Redis lock around control write queue; single `apply_command()` entry point with a typed command registry replacing the `process_command` if/elif tree.
-- [ ] `server/`: FastAPI + uvicorn. Pydantic models for `Settings`, `Control`, `Current`, `Command`, `PelletDB`, `Recipe`, `Cook`.
-- [ ] Auth: local admin password (argon2) → JWT; Firebase ID-token verification (for cloud-mode users hitting the Pi directly on LAN). Roles: owner/member/viewer.
-- [ ] `WS /ws/state` pushing on change (≤1 Hz); settings cached in-process, invalidated on write.
-- [ ] All mutations POST/PUT/DELETE; secrets write-only.
-- [ ] Generate `web/src/api/schema.d.ts` from OpenAPI in CI.
+### Slice B — Local API + new dashboard (2–3 wks)
+Deliverable: FireAI dashboard replaces the PiFire dashboard, served by nginx on the Pi, local mode only.
+- [ ] `server/` FastAPI + uvicorn. **Strangler pattern:** `common/common.py` stays as a façade; new `core/` modules are written for the server and legacy callers migrate one at a time. No big-bang split.
+- [ ] Pydantic models for `Current`, `Control`, `Command`, `Settings` (settings model carries UI metadata: label, help, group, widget, min/max, enum — see slice E).
+- [ ] Auth: single local admin password (argon2) set in the wizard on first boot → JWT bearer. API unreachable off-box until set. All mutations POST/PUT/DELETE; secrets write-only.
+- [ ] `WS /ws/state` pushing on change (≤1 Hz). Settings cached in-process, invalidated on write.
+- [ ] Typed command registry (`core/commands.py`) replacing `process_command`'s if/elif tree, with a compatibility shim so the legacy Flask app keeps working during the transition.
+- [ ] `web/`: Vite + React 19 + TS + Tailwind + shadcn/ui; design tokens; `GrillSource` interface with a `LocalSource` (REST + WS). Dashboard screen with full parity to `dash_default`. Playwright smoke test against `scripts/simulate.py`.
+- [ ] OpenAPI → `web/src/api/schema.d.ts` in CI.
 
-### Phase 2 — Cloud bridge + Firebase backend (2–3 wks)
-Deliverable: grill state visible and controllable from Firebase with the emulator suite and rules tests passing.
-- [ ] `bridge/cloud_bridge.py`: Redis keyspace subscribe → RTDB state (change-only, ≤1 Hz); commands listener with TTL/nonce/ownership checks → local API → ack; presence heartbeat; offline queue with replay; supervisor program.
-- [ ] Firebase project: Auth (Google + email), RTDB, Firestore, Storage, Functions (TS), App Check, Hosting. Budget alerts.
-- [ ] Rules + rules unit tests (emulator).
-- [ ] Functions: `pairGrill`, `unpairGrill`, `onCommandCreate` (schema + membership validation), `archiveCook` (pull downsampled series + `.pifire` + photos via bridge), `onNotifyEvent` → FCM, `cleanupStaleCommands` (scheduled).
-- [ ] Settings mirror (stripped) + two-way sync with conflict rule: Pi wins.
-- [ ] Wizard pairing screen (temporary, in legacy UI) so cloud can be tested before Phase 3.
+### Slice C — Cloud monitoring (2–3 wks)
+Deliverable: sign in on the hosted app, pair the grill, watch it live from anywhere, get push notifications.
+- [ ] Firebase project: Auth (Google + email), RTDB, Firestore, Storage, Functions (TS), App Check, Hosting, budget alerts. Emulator suite + rules unit tests in CI.
+- [ ] Pairing: wizard shows 6-digit code + QR → `pairGrill` callable creates `grills/{id}`, mints a **custom token**; bridge exchanges it via Identity Toolkit REST for an ID token + refresh token and stores them (0600). **No `firebase-admin` / service account on the Pi.** The bridge is an ordinary scoped user subject to security rules.
+- [ ] `bridge/`: separate supervisor program. Polls `control:current` at 1 Hz → RTDB `state` via REST (change-only). Presence heartbeat with `onDisconnect`. Continuous sample streaming: 10 s downsample, batched to Firestore `cooks/{id}/samples` every 2–5 min (so long cooks are never truncated by the 8 h Redis window). Uploads `.pifire` + photos to Storage at cook end.
+- [ ] Notify events: control process publishes to a Redis stream (`notify:events`); bridge forwards to `onNotifyEvent` → FCM. Existing Pushover/Apprise/etc. untouched.
+- [ ] `CloudSource` in `web/` (RTDB + Firestore SDK). **Transport rule:** hosted app ↔ cloud only; Pi-served app ↔ local only (browsers block HTTPS→HTTP mixed content, so there is no hybrid).
+- [ ] Bridge observability: `grills/{id}/bridge` status doc + last-50 error ring.
 
-### Phase 3 — New web UI (4–6 wks)
-Deliverable: feature parity with the Flask UI, served locally by nginx and from Firebase Hosting.
-- [ ] Design tokens + component library (dark-first, light theme). Mockups for Dashboard and mobile flows approved before screens are built.
-- [ ] Data layer: TanStack Query over local API; Firebase SDK adapters; single `GrillSource` interface selected at runtime.
-- [ ] Screens, in order: Dashboard → History/live graph (uPlot) → Cook library → Recipes → Pellets → Settings (sectioned, per-section save, schema-driven validation) → Probe config + Tuner → Manual → Events/Logs → Admin → Wizard (local-only).
-- [ ] Multi-grill switcher (data model already supports it).
-- [ ] Playwright smoke tests against the simulator stack.
+### Slice D — Cloud commands (1–2 wks)
+Deliverable: full control from the hosted app.
+- [ ] `sendCommand` callable: validates membership + schema, writes to RTDB `commands/{id}` with **server timestamp**; clients never set expiry. Bridge listens via SSE, rejects anything older than 30 s by its own NTP clock or with a seen nonce, applies via the local command registry, writes `acked` → `done|failed`. **Commands are never queued while offline.**
+- [ ] Local `cloud.control_enabled` opt-in (default off; set during pairing with explicit consent).
+- [ ] `settings.patch` command is the only write path for settings from the cloud; bridge applies locally and mirrors back to `settings/current`. Rules deny direct writes to the mirror.
+- [ ] UI: pending/acked/done states on every control; disabled with reason when `control_enabled` is off or grill offline.
 
-### Phase 4 — Mobile "native-feel" PWA (2–3 wks)
-Deliverable: installable app on Android and iOS with push notifications.
-- [ ] App shell: bottom tabs (Dashboard · Graph · Cooks · More), safe-area insets, `100dvh`, standalone display, gesture-safe scrolling, skeletons, haptics.
-- [ ] Manifest with maskable icons + splash; `beforeinstallprompt` (Android); iOS A2HS guidance.
-- [ ] FCM web push (Android/desktop; iOS 16.4+ installed PWA). Notification rules editable in-app.
-- [ ] Offline: shell cached by service worker, last state in IndexedDB, controls disabled with explicit "grill offline" state.
-- [ ] Performance budget: ≤200 KB initial JS, LCP <1.5 s mid-range Android.
-- [ ] (Optional, later) Capacitor wrap for store distribution.
+### Slice E — Schema-driven settings + the long tail (4–6 wks)
+Deliverable: everything configurable in PiFire is configurable in FireAI, in both modes.
+- [ ] One form renderer driven by the Pydantic JSON schema + UI metadata (groups, widgets, conditional visibility, units). Settings, notification services (Apprise, Pushover, Pushbullet, IFTTT, OneSignal, MQTT, InfluxDB, WLED), PWM/fan, safety, startup/shutdown, smoke plus, pellet level, display config, controller config all come from schema, not hand-built forms.
+- [ ] Hand-built screens where schema forms don't fit: History/live graph (uPlot), Cook library + editor (notes, photos), Recipes (viewer, editor, run), Pellets manager, Probe map/profiles editor, Tuner + auto-tune guided flow, Manual mode, Events/Logs, Admin (backup/restore, reboot, update), Wizard (local only; board + per-pin config, module selection).
+- [ ] Multi-grill switcher and member roles.
+- [ ] Legacy Flask UI removed once each page has parity (tracked per page).
 
-### Phase 5 — Cutover, packaging, cleanup (1–2 wks)
-- [ ] nginx: `/` → SPA, `/api` + `/ws` → FastAPI. Remove Flask, Jinja templates, jQuery/Bootstrap assets, legacy socket.io.
-- [ ] `deploy/install.sh` for supervisor programs `control`, `server`, `bridge`; web prebuilt in CI and shipped as a release tarball (no Node on the Pi).
-- [ ] New updater: GitHub Releases tarball + checksum, applied by the server with rollback.
+### Slice F — Native-feel PWA (1–2 wks)
+- [ ] Bottom tabs, safe-area insets, `100dvh`, standalone display, skeletons, haptics; manifest + maskable icons + splash; install prompts; FCM web push on Android/desktop and iOS 16.4+ installed PWAs; shell + last state cached offline with controls disabled and an explicit "grill offline" state. Budget ≤200 KB initial JS, LCP <1.5 s.
+- [ ] (Later, optional) Capacitor wrap for store distribution.
+
+### Slice G — Cutover and packaging (1–2 wks)
+- [ ] nginx: `/` → SPA, `/api` + `/ws` → FastAPI. Remove Flask, Jinja, jQuery/Bootstrap assets, legacy socket.io, eventlet/gunicorn.
+- [ ] `deploy/install.sh` (supervisor programs `control`, `server`, `bridge`), web prebuilt in CI and shipped in a release tarball (no Node on the Pi). Install path `/opt/fireai`.
+- [ ] Release-based updater with checksum + rollback; `upgrade_settings` migrator extended for the FireAI schema.
 - [ ] Docs: pairing, security model, local-only setup, hardware (PCB v4.x, ThermoMaven G1).
-- [ ] Final rename/branding.
-
----
 
 ## 5. Enhancements folded in
 
@@ -200,7 +201,11 @@ Deliverable: installable app on Android and iOS with push notifications.
 
 | Risk | Mitigation |
 |---|---|
-| Regressing safety logic during `common/` split | Tests first; `control.py` work-cycle untouched; simulator in CI. |
+| Regressing safety logic | `control.py` gets only a `main()` wrapper + injectable clock; golden simulated-cook tests run in CI; `common/` is strangled, never split big-bang. |
+| Untrusted client clocks / replayed commands | Commands only via `sendCommand` callable with server timestamps; bridge enforces TTL against NTP + nonce; never queued offline. |
+| Service-account key on a consumer device | Bridge authenticates as a scoped user (custom token → ID token via REST); rules apply to it like any client. |
+| Mixed-content between hosted app and LAN Pi | Explicit transport rule: hosted ↔ cloud, Pi-served ↔ local. |
+| Parity long tail balloons | Schema-driven settings renderer; hand-built screens limited to the list in slice E. |
 | Firebase cost | RTDB for hot data, change-only writes, 10 s downsampling for archives, budget alerts. Expected ≈ $0/mo for a household. |
 | Stale cloud command executes | TTL + nonce + ack; UI renders ack state. |
 | ThermoMaven unofficial API breaks (app key rotated, endpoint change) | Driver isolated behind the probe-device interface; fails to "disconnected", never blocks the control loop; wired probes cover the cook. Track `thermomaven-ha` for protocol updates. |
@@ -208,7 +213,7 @@ Deliverable: installable app on Android and iOS with push notifications.
 
 ## 7. Timeline
 
-~12–19 weeks to full cutover. Usable new dashboard + cloud monitoring lands around week 6–8 (end of Phase 2 / early Phase 3).
+~14–20 weeks to full cutover. New dashboard usable in local mode at ~week 3 (end of slice B); cloud monitoring ~week 6; cloud control ~week 8; the settings long tail is the bulk of the remainder.
 
 ## 8. Open items
 
