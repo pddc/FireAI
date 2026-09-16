@@ -21,6 +21,7 @@ const SystemPage = lazy(() => import('@/features/settings/SystemPage').then((m) 
 const RecipesPage = lazy(() => import('@/features/recipes/RecipesPage').then((m) => ({ default: m.RecipesPage })))
 const HardwarePage = lazy(() => import('@/features/settings/HardwarePage').then((m) => ({ default: m.HardwarePage })))
 const TunerPage = lazy(() => import('@/features/settings/TunerPage').then((m) => ({ default: m.TunerPage })))
+const MembersPage = lazy(() => import('@/features/cloud/MembersPage').then((m) => ({ default: m.MembersPage })))
 const CloudPage = lazy(() => import('@/features/settings/CloudPage').then((m) => ({ default: m.CloudPage })))
 const cloudPage = (name: 'SignInPage' | 'GrillsPage' | 'PairPage' | 'CloudGrillGate' | 'CloudAuthGate') =>
   lazy(() => import('@/features/cloud/CloudPages').then((m) => ({ default: m[name] })))
@@ -73,7 +74,7 @@ const shellChildren: RouteObject[] = [
   { path: 'settings', element: <SettingsIndexPage /> },
   { path: 'settings/pellets-manager', element: lazyEl(<PelletsPage />) },
   { path: 'settings/events', element: lazyEl(<EventsPage />) },
-  ...(IS_CLOUD ? [] : [
+  ...(IS_CLOUD ? [{ path: 'settings/members', element: lazyEl(<MembersPage />) }] : [
     { path: 'settings/cloud', element: lazyEl(<CloudPage />) },
     { path: 'settings/probes', element: lazyEl(<ProbesPage />) },
     { path: 'settings/system', element: lazyEl(<SystemPage />) },

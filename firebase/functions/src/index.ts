@@ -138,6 +138,59 @@ export const claimPairing = onRequest({ region: REGION, cors: false }, async (re
 })
 
 // --------------------------------------------------------------------------
+// Members
+// --------------------------------------------------------------------------
+
+/** Owner adds/changes/removes a member by email. Keeps Firestore members and custom claims in sync. */
+export const setMember = onCall({ region: REGION }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in first')
+  const grillId = String(request.data?.grillId ?? '')
+  const email = String(request.data?.email ?? '').trim().toLowerCase()
+  const role = request.data?.role as Role | 'remove'
+  if (!grillId || !email || !['owner', 'operator', 'viewer', 'remove'].includes(role)) throw new HttpsError('invalid-argument', 'grillId, email and role are required')
+  const grillRef = db.collection('grills').doc(grillId)
+  const grill = await grillRef.get()
+  if (!grill.exists) throw new HttpsError('not-found', 'Unknown grill')
+  const members = (grill.data()?.members ?? {}) as Record<string, Role>
+  if (members[uid] !== 'owner') throw new HttpsError('permission-denied', 'Only the owner can manage members')
+  let target
+  try {
+    target = await getAuth().getUserByEmail(email)
+  } catch {
+    throw new HttpsError('not-found', 'No FireAI account with that email. Ask them to sign in to the app once first.')
+  }
+  if (target.uid === uid && role !== 'owner') throw new HttpsError('failed-precondition', 'The owner cannot demote themselves')
+  if (role === 'owner' && target.uid !== uid) throw new HttpsError('failed-precondition', 'Ownership transfer is not supported yet')
+  const next = { ...members }
+  if (role === 'remove') delete next[target.uid]
+  else next[target.uid] = role
+  await grillRef.update({ members: next })
+  const claims = { ...(target.customClaims ?? {}) }
+  const grills = { ...((claims.grills as Record<string, Role>) ?? {}) }
+  if (role === 'remove') delete grills[grillId]
+  else grills[grillId] = role
+  await getAuth().setCustomUserClaims(target.uid, { ...claims, grills })
+  await db.collection('users').doc(target.uid).set({ grillIds: role === 'remove' ? FieldValue.arrayRemove(grillId) : FieldValue.arrayUnion(grillId) }, { merge: true })
+  return { members: Object.fromEntries(Object.entries(next).map(([k, v]) => [k, v])) }
+})
+
+/** Resolve member uids to display names/emails for the members page (owner or member). */
+export const listMembers = onCall({ region: REGION }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in first')
+  const grillId = String(request.data?.grillId ?? '')
+  const grill = await db.collection('grills').doc(grillId).get()
+  const members = (grill.data()?.members ?? {}) as Record<string, Role>
+  if (!members[uid]) throw new HttpsError('permission-denied', 'Not a member')
+  const users = await getAuth().getUsers(Object.keys(members).map((u) => ({ uid: u })))
+  return {
+    members: users.users.map((u) => ({ uid: u.uid, email: u.email ?? '', displayName: u.displayName ?? '', role: members[u.uid] })),
+    ownerUid: grill.data()?.ownerUid,
+  }
+})
+
+// --------------------------------------------------------------------------
 // Commands
 // --------------------------------------------------------------------------
 

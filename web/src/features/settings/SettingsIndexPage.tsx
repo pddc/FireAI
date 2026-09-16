@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText, CircuitBoard, SlidersHorizontal, BookOpen } from 'lucide-react'
+import { ChevronRight, Users, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText, CircuitBoard, SlidersHorizontal, BookOpen } from 'lucide-react'
 import { IS_CLOUD } from '@/lib/mode'
 
 const SECTIONS = [
+  { to: 'members', label: 'Members', desc: 'Who can see and control this grill', icon: Users, cloudOnly: true },
   { to: 'cloud', label: 'Cloud', desc: 'Pairing, remote control, monitoring', icon: Cloud, localOnly: true },
   { to: 'general', label: 'General', desc: 'Name, units, theme, dashboard', icon: Wrench },
   { to: 'control', label: 'Control', desc: 'Startup, smoke, hold, shutdown, PID', icon: Gauge },
@@ -23,7 +24,7 @@ export function SettingsIndexPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
       <div className="overflow-hidden rounded-xl border bg-card">
-        {SECTIONS.filter((s) => !(IS_CLOUD && s.localOnly)).map(({ to, label, desc, icon: Icon }, i) => (
+        {SECTIONS.filter((s) => !(IS_CLOUD && s.localOnly) && !(!IS_CLOUD && s.cloudOnly)).map(({ to, label, desc, icon: Icon }, i) => (
           <Link key={to} to={to} className={`flex items-center gap-3 p-4 transition-colors hover:bg-muted ${i > 0 ? 'border-t' : ''}`}>
             <Icon className="size-5 text-muted-foreground" />
             <div className="min-w-0 flex-1">
