@@ -109,9 +109,6 @@ def index():
  Register Mobile Blueprint
 ==============================================================================
 '''
-# Initialize Flask-SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*")
-
 # Register mobile blueprint and provide it with socketio instance
 from blueprints.mobile import mobile_bp, socket_io
 mobile_bp.socketio = socketio

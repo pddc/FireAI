@@ -1,14 +1,14 @@
 """
 Class to create a generic redis based queue
 """
-import redis 
 import json
+from core.redis_client import get_redis
 
 
 class RedisQueue():
     def __init__(self, hashname):
         self.hashname = hashname
-        self.redis_db = redis.StrictRedis('localhost', 6379, charset="utf-8", decode_responses=True)
+        self.redis_db = get_redis()
 
     def push(self, data):
         self.redis_db.rpush(self.hashname, json.dumps(data))

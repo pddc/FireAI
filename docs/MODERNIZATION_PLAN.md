@@ -11,7 +11,7 @@ Origin: hard fork of [nebhead/PiFire](https://github.com/nebhead/PiFire) v1.10.x
 | 2 | Frontend stack | Vite + React 19 + TypeScript + Tailwind + shadcn/ui, PWA via `vite-plugin-pwa` |
 | 3 | Cloud scope v1 | Monitoring **and** control commands from the cloud |
 | 4 | Local-only mode | Must always work with no Firebase account / no internet |
-| 5 | Reference hardware | PCB v4.x modular board, multiple wired probes, **ThermoMaven G1** (BLE, new driver required) |
+| 5 | Reference hardware | PCB v4.x modular board, multiple wired probes, **ThermoMaven G1** (WiFi→cloud device, new driver required) |
 
 ## Guiding principles
 
@@ -74,9 +74,8 @@ Origin: hard fork of [nebhead/PiFire](https://github.com/nebhead/PiFire) v1.10.x
 **Why RTDB for live state, Firestore for documents:** 1 Hz telemetry into Firestore is ~86k writes/day/grill (free tier: 20k). RTDB bills on bandwidth; a ~300-byte state at 1 Hz is negligible and gives sub-100 ms fan-out. Documents (cooks, recipes, pellets, settings) go to Firestore.
 
 ### Cloud command safety contract
-- Command doc: `{ type, args, uid, issuedAt, expiresAt (≤30 s), nonce, status }`.
-- Bridge rejects expired/replayed/unknown-schema commands and writes `status: rejected` with a reason; accepted ones get `acked` then `done|failed`.
-- Firestore/RTDB rules enforce `uid ∈ grills/{grillId}.members` before a command is visible to the bridge.
+- Commands are created only by the `sendCommand` callable Function, which checks `uid ∈ grills/{grillId}.members`, validates the schema and writes `{ type, args, uid, createdAt: <server timestamp>, nonce, status }` to RTDB. Clients never set timestamps or expiry; rules deny direct client writes to `commands/`.
+- Bridge rejects commands older than 30 s by its own NTP clock, replayed nonces, or unknown schemas, and writes `status: rejected` with a reason; accepted ones get `acked` then `done|failed`. Commands are never queued while offline.
 - Local setting `cloud.control_enabled` (default **off**; enabled during pairing with explicit consent). `cloud.monitor_enabled` default on after pairing.
 - Bridge and controller are separate supervisor programs. Bridge failure never affects the cook.
 - Bridge heartbeat every 15 s to `/grills/{id}/presence` with `onDisconnect()` so the app can render "offline" honestly.
@@ -86,9 +85,9 @@ Origin: hard fork of [nebhead/PiFire](https://github.com/nebhead/PiFire) v1.10.x
 ```
 /
 ├── control.py, controller/, grillplat/, probes/, display/, distance/, notify/   # hardware + control (kept, tested, lightly cleaned)
-├── core/                    # split of common/common.py: settings, control_state, history, pellets, commands, redis_client
+├── core/                    # new infrastructure (redis_client, models, commands); common/common.py stays as a façade and is strangled over time
 ├── server/                  # FastAPI: REST + WebSocket, auth, OpenAPI
-├── bridge/                  # cloud_bridge.py + offline queue
+├── bridge/                  # cloud_bridge.py (REST/SSE as a scoped user; events/samples may queue, commands never)
 ├── web/                     # Vite/React/TS PWA (single build, local + cloud modes)
 ├── firebase/                # functions/, rules, emulators config, firebase.json
 ├── deploy/                  # install.sh, nginx, supervisor, release packaging
