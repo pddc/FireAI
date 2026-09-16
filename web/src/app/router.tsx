@@ -13,6 +13,7 @@ import { LocalSource } from '@/lib/source/LocalSource'
 import { IS_CLOUD } from '@/lib/mode'
 
 const GraphPage = lazy(() => import('@/features/graph/GraphPage').then((m) => ({ default: m.GraphPage })))
+const ProbesPage = lazy(() => import('@/features/settings/ProbesPage').then((m) => ({ default: m.ProbesPage })))
 const CloudPage = lazy(() => import('@/features/settings/CloudPage').then((m) => ({ default: m.CloudPage })))
 const cloudPage = (name: 'SignInPage' | 'GrillsPage' | 'PairPage' | 'CloudGrillGate' | 'CloudAuthGate') =>
   lazy(() => import('@/features/cloud/CloudPages').then((m) => ({ default: m[name] })))
@@ -61,7 +62,7 @@ const shellChildren: RouteObject[] = [
   { path: 'graph', element: lazyEl(<GraphPage />) },
   { path: 'cooks', element: <PlaceholderPage title="Cooks" /> },
   { path: 'settings', element: <SettingsIndexPage /> },
-  ...(IS_CLOUD ? [] : [{ path: 'settings/cloud', element: lazyEl(<CloudPage />) }]),
+  ...(IS_CLOUD ? [] : [{ path: 'settings/cloud', element: lazyEl(<CloudPage />) }, { path: 'settings/probes', element: lazyEl(<ProbesPage />) }]),
   { path: 'settings/:section', element: <SettingsSectionPage /> },
 ]
 

@@ -91,8 +91,11 @@ def default_device(module: str, name: str | None = None, modules: dict | None = 
 	config: dict[str, Any] = {}
 	for opt in spec.get('config', []):
 		config[opt['label']] = [] if opt['label'] == 'probes_list' else opt.get('default', '')
+	friendly = meta.get('friendly_name', module)
+	# "Cloud - ThermoMaven (G1 / G2 / G4 / P-series)" -> "ThermoMaven"
+	short = re.sub(r'\s*\(.*?\)', '', friendly.split(' - ', 1)[-1]).strip()
 	return {
-		'device': to_label(name or meta.get('friendly_name', module)) or module,
+		'device': to_label(name or short) or module,
 		'module': module,
 		'module_filename': meta.get('filename', module),
 		'ports': list(spec.get('ports', [])),

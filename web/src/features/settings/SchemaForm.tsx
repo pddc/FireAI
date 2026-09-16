@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NativeSelect } from '@/components/ui/native-select'
 import { cn } from '@/lib/utils'
 import { unitLabel } from '@/lib/format'
 import type { Units } from '@/types/state'
@@ -91,22 +91,13 @@ function FieldControl({ field, value, onChange, units, dirty }: FieldProps) {
       return <Switch id={id} checked={!!value} onCheckedChange={(c) => onChange(c)} />
     case 'select':
       return (
-        <Select
+        <NativeSelect
+          id={id}
+          className="w-full sm:w-56"
           value={String(value ?? '')}
-          onValueChange={(v) => onChange(coerceOption(field, String(v ?? '')))}
-          items={(field.options ?? []).map((o) => ({ value: String(o.value), label: o.label }))}
-        >
-          <SelectTrigger id={id} className="w-full sm:w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(field.options ?? []).map((o) => (
-              <SelectItem key={String(o.value)} value={String(o.value)}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onValueChange={(v) => onChange(coerceOption(field, v))}
+          options={(field.options ?? []).map((o) => ({ value: String(o.value), label: o.label }))}
+        />
       )
     case 'slider':
       return (

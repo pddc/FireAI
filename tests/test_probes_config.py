@@ -45,6 +45,7 @@ def test_virtual_device_references(pmap):
 def test_default_device_from_manifest():
 	d = pc.default_device('cloud_thermomaven', 'My G1')
 	assert d['device'] == 'MyG1' and d['module_filename'] == 'cloud_thermomaven'
+	assert pc.default_device('cloud_thermomaven')['device'] == 'ThermoMaven'
 	assert 'P1_MEAT' in d['ports'] and d['config']['region'] == 'US' and d['config']['num_probes'] == 1
 
 
