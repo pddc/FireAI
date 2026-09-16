@@ -36,6 +36,8 @@ apt-get update -qq
 apt-get install -y -qq python3 python3-venv python3-dev python3-pip git curl nginx redis-server supervisor \
   libglib2.0-dev libopenjp2-7 libatlas-base-dev bluetooth bluez libbluetooth-dev fonts-dejavu-core >/dev/null
 if grep -q "Raspberry Pi 5" /proc/device-tree/model 2>/dev/null; then apt-get install -y -qq python3-rpi-lgpio >/dev/null || true; fi
+# Bluetooth probes need the adapter unblocked (some images ship it soft-blocked).
+rfkill unblock bluetooth 2>/dev/null || true
 
 # Redis: memory only, never touch the SD card.
 sed -i 's/^save .*/save ""/; s/^appendonly yes/appendonly no/' /etc/redis/redis.conf
