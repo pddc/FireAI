@@ -8,7 +8,7 @@ const SECTIONS = [
   { to: 'cloud', label: 'Cloud', desc: 'Pairing, remote control, monitoring', icon: Cloud, localOnly: true },
   { to: 'general', label: 'General', desc: 'Name, units, theme, dashboard', icon: Wrench },
   { to: 'control', label: 'Control', desc: 'Startup, smoke, hold, shutdown, PID', icon: Gauge },
-  { to: 'pellets-manager', label: 'Pellets', desc: 'Hopper contents, profiles, load history', icon: Package },
+  { to: '../pellets', label: 'Pellets', desc: 'Hopper contents, profiles, load history', icon: Package },
   { to: 'pellets', label: 'Pellet level sensor', desc: 'Calibration, low-pellet warnings', icon: Package },
   { to: 'probes', label: 'Probes', desc: 'Devices, ports, profiles', icon: Thermometer, localOnly: true },
   { to: 'tuner', label: 'Probe tuner', desc: 'Fit coefficients for a new probe', icon: SlidersHorizontal, localOnly: true },

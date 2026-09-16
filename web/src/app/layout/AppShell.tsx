@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { IS_CLOUD } from '@/lib/mode'
-import { Flame, LineChart, BookOpen, Settings2, Wifi, WifiOff, Loader2, Moon, Sun } from 'lucide-react'
+import { Flame, LineChart, BookOpen, ChefHat, Package, Settings2, Wifi, WifiOff, Loader2, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useConnection, useGrillState } from '@/stores/grill'
 import { useUi } from '@/stores/ui'
@@ -13,6 +13,8 @@ const NAV = [
   { to: '.', label: 'Dashboard', icon: Flame, end: true },
   { to: 'graph', label: 'Graph', icon: LineChart },
   { to: 'cooks', label: 'Cooks', icon: BookOpen },
+  { to: 'recipes', label: 'Recipes', icon: ChefHat },
+  { to: 'pellets', label: 'Pellets', icon: Package, desktopOnly: true },
   { to: 'settings', label: 'Settings', icon: Settings2 },
 ]
 
@@ -120,8 +122,8 @@ export function AppShell() {
 
         {/* Mobile bottom tabs */}
         <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/60 bg-background/90 backdrop-blur lg:hidden pb-safe">
-          <div className="mx-auto grid max-w-lg grid-cols-4">
-            {NAV.map(({ to, label, icon: Icon, end }) => (
+          <div className="mx-auto grid max-w-lg grid-cols-5">
+            {NAV.filter((n) => !n.desktopOnly).map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
                 to={to}

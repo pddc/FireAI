@@ -74,7 +74,8 @@ const shellChildren: RouteObject[] = [
   { path: 'recipes', element: lazyEl(<RecipesPage />) },
   { path: 'settings', element: <SettingsIndexPage /> },
   { path: 'settings/app', element: lazyEl(<AppPage />) },
-  { path: 'settings/pellets-manager', element: lazyEl(<PelletsPage />) },
+  { path: 'pellets', element: lazyEl(<PelletsPage />) },
+  { path: 'settings/pellets-manager', element: <Navigate to="../pellets" replace /> },
   { path: 'settings/events', element: lazyEl(<EventsPage />) },
   ...(IS_CLOUD ? [{ path: 'settings/members', element: lazyEl(<MembersPage />) }] : [
     { path: 'settings/cloud', element: lazyEl(<CloudPage />) },
