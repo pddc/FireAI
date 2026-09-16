@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText } from 'lucide-react'
+import { ChevronRight, Cloud, Cpu, Bell, Gauge, Shield, Thermometer, Wrench, Package, ScrollText, CircuitBoard, SlidersHorizontal, BookOpen } from 'lucide-react'
 import { IS_CLOUD } from '@/lib/mode'
 
 const SECTIONS = [
@@ -9,10 +9,13 @@ const SECTIONS = [
   { to: 'pellets-manager', label: 'Pellets', desc: 'Hopper contents, profiles, load history', icon: Package },
   { to: 'pellets', label: 'Pellet level sensor', desc: 'Calibration, low-pellet warnings', icon: Package },
   { to: 'probes', label: 'Probes', desc: 'Devices, ports, profiles', icon: Thermometer, localOnly: true },
+  { to: 'tuner', label: 'Probe tuner', desc: 'Fit coefficients for a new probe', icon: SlidersHorizontal, localOnly: true },
+  { to: '../recipes', label: 'Recipes', desc: 'Programs the grill runs on its own', icon: BookOpen, localOnly: true },
   { to: 'notifications', label: 'Notifications', desc: 'Pushover, Apprise, MQTT, WLED…', icon: Bell },
   { to: 'safety', label: 'Safety', desc: 'Limits, re-ignite, manual overrides', icon: Shield },
   { to: 'events', label: 'Events & logs', desc: 'What happened, when', icon: ScrollText },
-  { to: 'system', label: 'System', desc: 'Hardware, backup, restart, power', icon: Cpu, localOnly: true },
+  { to: 'hardware', label: 'Hardware', desc: 'Board, display, pellet sensor', icon: CircuitBoard, localOnly: true },
+  { to: 'system', label: 'System', desc: 'Info, backup, restart, power', icon: Cpu, localOnly: true },
 ]
 
 export function SettingsIndexPage() {

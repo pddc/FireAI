@@ -150,6 +150,15 @@ def recipes(_: auth.Principal = Depends(current_principal)):
 	return {'recipes': library.list_recipes()}
 
 
+class NewRecipeBody(BaseModel):
+	title: str = Field(default='', max_length=80)
+
+
+@router.post('/recipes')
+def recipe_create(body: NewRecipeBody, _: auth.Principal = Depends(current_principal)):
+	return {'filename': library.create_recipe(body.title)}
+
+
 @router.get('/recipes/{filename}')
 def recipe(filename: str, _: auth.Principal = Depends(current_principal)):
 	try:

@@ -188,6 +188,12 @@ class DutyCycleArgs(BaseModel):
 	duty_cycle: int = Field(ge=0, le=100)
 
 
+class RecipeStartArgs(BaseModel):
+	model_config = ConfigDict(extra='forbid')
+	filename: str = Field(pattern=r'^[A-Za-z0-9._ -]+\.pfrecipe$')
+	start_step: int = Field(default=0, ge=0, le=50)
+
+
 class SettingsPatchArgs(BaseModel):
 	model_config = ConfigDict(extra='forbid')
 	patch: dict[str, Any] = Field(description='Partial settings document, deep-merged')
@@ -384,6 +390,29 @@ def _manual(args: ManualArgs, ctx: Ctx):
 @register('manual.pwm', ManualPwmArgs, description='Set the DC fan PWM duty cycle manually.')
 def _manual_pwm(args: ManualPwmArgs, ctx: Ctx):
 	ctx.patch_control({'manual': {'change': 'pwm', 'pwm': args.duty_cycle, 'output': True}})
+
+
+# --------------------------------------------------------------------------
+# Recipes
+# --------------------------------------------------------------------------
+
+
+@register('recipe.start', RecipeStartArgs, description='Run a recipe program from the recipes folder.')
+def _recipe_start(args: RecipeStartArgs, ctx: Ctx):
+	from pathlib import Path
+
+	path = Path('recipes') / args.filename
+	if not path.exists():
+		raise CommandError(f'Recipe {args.filename} not found', code='not_found')
+	ctx.patch_control({'mode': 'Recipe', 'updated': True, 'recipe': {'filename': path.as_posix(), 'start_step': args.start_step}})
+
+
+@register('recipe.continue', description='Release a paused recipe step and move to the next one.')
+def _recipe_continue(args, ctx: Ctx):
+	control = common.read_control()
+	if control.get('mode') != 'Recipe':
+		raise CommandError('No recipe is running', code='state')
+	ctx.patch_control({'recipe': {'step_data': {'pause': False}}})
 
 
 # --------------------------------------------------------------------------

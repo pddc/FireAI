@@ -164,3 +164,23 @@ def test_endpoints(cookdir, settings, control):
 		assert r.status_code == 200 and 'settings' in r.json()['restored']
 		# recipes (empty)
 		assert c.get('/api/v1/recipes', headers=h).json()['recipes'] == []
+
+
+def test_recipe_create_read_update(settings, control):
+	name = library.create_recipe('Brisket')
+	assert name.endswith('.pfrecipe') and library.list_recipes()[0]['title'] == 'Brisket'
+	doc = library.read_recipe(name)
+	assert doc['recipe']['steps'][0]['mode'] == 'Startup'
+	doc['recipe']['steps'][1]['hold_temp'] = 250
+	library.write_recipe_part(name, 'recipe', doc['recipe'])
+	assert library.read_recipe(name)['recipe']['steps'][1]['hold_temp'] == 250
+	from core import commands as reg
+
+	out = reg.execute('recipe.start', {'filename': name}, origin='t', direct_write=True)
+	assert out.result == 'OK'
+	c = common.read_control()
+	assert c['mode'] == 'Recipe' and c['recipe']['filename'].endswith(name)
+	assert reg.execute('recipe.continue', {}, origin='t', direct_write=True).result == 'OK'
+	assert reg.execute('recipe.start', {'filename': 'missing.pfrecipe'}, origin='t').result == 'ERROR'
+	library.delete_recipe(name)
+	assert library.list_recipes() == []

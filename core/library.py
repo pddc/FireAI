@@ -247,6 +247,24 @@ def write_recipe_part(filename: str, part: str, data) -> None:
 		raise ValueError(status)
 
 
+def create_recipe(title: str = '') -> str:
+	"""Create a new empty recipe file (metadata + default steps) and return its filename."""
+	from file_mgmt.recipes import _default_recipe_metadata, _default_recipe_steps
+
+	RECIPES_DIR.mkdir(exist_ok=True)
+	stamp = datetime.datetime.now().strftime('%Y-%m-%d--%H%M%S')
+	name = f'{stamp}-Recipe.pfrecipe'
+	meta = _default_recipe_metadata()
+	meta['title'] = title[:80]
+	recipe = {'ingredients': [], 'instructions': [], 'steps': _default_recipe_steps()}
+	with zipfile.ZipFile(RECIPES_DIR / name, 'w', zipfile.ZIP_DEFLATED) as zf:
+		zf.writestr('metadata.json', json.dumps(meta, indent=2, sort_keys=True))
+		zf.writestr('recipe.json', json.dumps(recipe, indent=2, sort_keys=True))
+		zf.writestr('comments.json', json.dumps([]))
+		zf.writestr('assets.json', json.dumps([]))
+	return name
+
+
 def delete_recipe(filename: str) -> None:
 	(RECIPES_DIR / _safe(filename, '.pfrecipe')).unlink()
 

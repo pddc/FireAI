@@ -18,6 +18,9 @@ const CookDetailPage = lazy(() => import('@/features/cooks/CookDetailPage').then
 const PelletsPage = lazy(() => import('@/features/pellets/PelletsPage').then((m) => ({ default: m.PelletsPage })))
 const EventsPage = lazy(() => import('@/features/settings/EventsPage').then((m) => ({ default: m.EventsPage })))
 const SystemPage = lazy(() => import('@/features/settings/SystemPage').then((m) => ({ default: m.SystemPage })))
+const RecipesPage = lazy(() => import('@/features/recipes/RecipesPage').then((m) => ({ default: m.RecipesPage })))
+const HardwarePage = lazy(() => import('@/features/settings/HardwarePage').then((m) => ({ default: m.HardwarePage })))
+const TunerPage = lazy(() => import('@/features/settings/TunerPage').then((m) => ({ default: m.TunerPage })))
 const CloudPage = lazy(() => import('@/features/settings/CloudPage').then((m) => ({ default: m.CloudPage })))
 const cloudPage = (name: 'SignInPage' | 'GrillsPage' | 'PairPage' | 'CloudGrillGate' | 'CloudAuthGate') =>
   lazy(() => import('@/features/cloud/CloudPages').then((m) => ({ default: m[name] })))
@@ -66,6 +69,7 @@ const shellChildren: RouteObject[] = [
   { path: 'graph', element: lazyEl(<GraphPage />) },
   { path: 'cooks', element: lazyEl(<CooksPage />) },
   { path: 'cooks/:cookId', element: lazyEl(<CookDetailPage />) },
+  { path: 'recipes', element: lazyEl(<RecipesPage />) },
   { path: 'settings', element: <SettingsIndexPage /> },
   { path: 'settings/pellets-manager', element: lazyEl(<PelletsPage />) },
   { path: 'settings/events', element: lazyEl(<EventsPage />) },
@@ -73,6 +77,8 @@ const shellChildren: RouteObject[] = [
     { path: 'settings/cloud', element: lazyEl(<CloudPage />) },
     { path: 'settings/probes', element: lazyEl(<ProbesPage />) },
     { path: 'settings/system', element: lazyEl(<SystemPage />) },
+    { path: 'settings/hardware', element: lazyEl(<HardwarePage />) },
+    { path: 'settings/tuner', element: lazyEl(<TunerPage />) },
   ]),
   { path: 'settings/:section', element: <SettingsSectionPage /> },
 ]
