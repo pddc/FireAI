@@ -217,3 +217,25 @@ Deliverable: everything configurable in PiFire is configurable in FireAI, in bot
 
 - Project name / branding (needed by Phase 5, nice to have earlier for the Firebase project ID).
 - Confirm exact PCB v4.x sub-modules in use (relay/fan board, probe ADC module) for the simulator config and wizard tests.
+
+## 9. PiFire feature parity audit (2026-09-16)
+
+Every page of PiFire's menu has a home in FireAI: Dashboard → Dashboard; Recipes → Recipes; Pellets → Pellets;
+History → Graph + Cooks; Events → Settings → Events & logs; Settings → Settings; Admin → Settings → System /
+Hardware / Tuner / App. The audit found these gaps, all closed the same day:
+
+| PiFire feature | FireAI |
+|---|---|
+| P-Mode selection while smoking | `-`/`+` on the dashboard in Startup/Smoke (`pmode` command) |
+| ETA to target | on probe cards; `globals.eta_calculation` toggle in Settings → General |
+| Dashboard card show/hide, gauge ranges | Customize sheet (settings.dashboard `hidden_cards`, served in the snapshot); gauge maxima in Settings → General |
+| Cook file: photos, cover, note edit/delete, export/import | `POST/DELETE /cooks/{f}/assets`, `PUT /thumbnail`, `PUT/DELETE /comments/{id}`, `/download`, `POST /cooks/import` |
+| Recipe images, metadata, import/export | cover + row photos, author/times/difficulty/rating, `/recipes/{f}/download`, `POST /recipes/import` |
+| Log file viewer | Settings → Events & logs → Log files (already existed) |
+| Metrics page | Settings → Cook metrics, `GET /metrics` + `/metrics.csv` |
+| Bluetooth scan for `bt_address` fields, `bt_diag.py` | Scan button in Settings → Probes, diagnostics card on Settings → Hardware |
+| Post-update message | `updater/whats-new.md` shown once via `/system/whats-new` |
+| First-run wizard | `/setup/hardware` stepper on `first_time_setup`, Skip = `POST /hardware/wizard/dismiss` |
+
+Deliberately not ported: the Flex/on-device display UI is unchanged (runs on the Pi's screen), Pi-side
+"dashboard themes" beyond card visibility, and the legacy `/api` v1 JSON API (replaced by `/api/v1`).
