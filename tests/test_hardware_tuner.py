@@ -111,10 +111,10 @@ def test_endpoints(settings, control):
 
 class TestBluetooth:
 	def test_scan_through_control_queue(self, sim_settings, control, monkeypatch):
+		import control as ctl
 		from common.redis_queue import RedisQueue
 		from core import bluetooth
 		from grillplat.simulator import GrillPlatform
-		import control as ctl
 
 		# The control loop drains control:systemq; emulate it right after the API pushes the command.
 		real_push = RedisQueue.push

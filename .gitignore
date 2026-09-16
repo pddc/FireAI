@@ -50,11 +50,11 @@ backups/
 bin/
 settings-v1.8.0.json
 
-include/
-
-lib/
-
-share/
+# virtualenv folders at the repo root only (web/src/lib and firebase/functions/src/lib are source)
+/include/
+/lib/
+/lib64/
+/share/
 
 lib64
 
