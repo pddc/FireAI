@@ -262,6 +262,8 @@ def default_settings():
 		'full' : 4  			# Number of centimeters from the sensor that indicates full
 	}
 
+	settings['cloud'] = default_cloud_settings()
+
 	settings['modules'] = {
 		'grillplat' : 'prototype',
 		'display' : 'none',
@@ -333,6 +335,16 @@ def default_settings():
 	settings['recipe']['probe_map'] = _default_recipe_probe_map(settings)
 
 	return settings
+
+def default_cloud_settings():
+	""" FireAI cloud bridge settings. Credentials live in bridge/credentials.json, not here. """
+	return {
+		'enabled' : True,            # Run the bridge when paired
+		'control_enabled' : False,   # Accept commands from the cloud (opt-in at pairing)
+		'monitor_enabled' : True,    # Mirror live state / history to the cloud
+		'functions_url' : '',        # Override Cloud Functions base URL (self-hosted projects)
+		'sample_interval_s' : 10,    # Downsample interval for archived cook samples
+	}
 
 def _default_dashboard():
 	''' 

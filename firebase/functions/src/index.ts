@@ -20,6 +20,7 @@ import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https'
 import { onValueCreated } from 'firebase-functions/v2/database'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
+import { defineString } from 'firebase-functions/params'
 import { randomBytes } from 'node:crypto'
 import { bridgeUid, checkPending, hashSecret, newGrillId, PAIRING_TTL_MS, secretMatches, validateRequest, type PairingDoc } from './lib/pairing.js'
 import { validateCommand, type Role } from './lib/commands.js'
@@ -29,6 +30,9 @@ const db = getFirestore()
 const rtdb = getDatabase()
 
 const REGION = 'us-central1'
+// Public web API key of the project, handed to the bridge so it can exchange its custom token.
+const WEB_API_KEY = defineString('FIREAI_WEB_API_KEY')
+const DATABASE_URL = defineString('FIREAI_DATABASE_URL', { default: '' })
 const COMMAND_TTL_MS = 60 * 60 * 1000
 
 function json(res: { status: (n: number) => { json: (b: unknown) => void } }, code: number, body: unknown) {
@@ -92,7 +96,6 @@ export const pairGrill = onCall({ region: REGION }, async (request) => {
       board: check.doc.grillInfo.board ?? null,
       firmware: check.doc.grillInfo.version ?? null,
       pairedAt: FieldValue.serverTimestamp(),
-      cloudControl: false,
     })
     tx.set(db.collection('users').doc(uid), { grillIds: FieldValue.arrayUnion(grillId) }, { merge: true })
     tx.update(ref, { status: 'claimed', grillId, ownerUid: uid })
@@ -129,7 +132,8 @@ export const claimPairing = onRequest({ region: REGION, cors: false }, async (re
     grillId: doc.grillId,
     customToken: doc.customToken,
     projectId: process.env.GCLOUD_PROJECT,
-    databaseURL: process.env.FIREBASE_DATABASE_URL ?? rtdb.ref().toString().replace(/\/$/, ''),
+    apiKey: WEB_API_KEY.value(),
+    databaseURL: DATABASE_URL.value() || rtdb.ref().toString().replace(/\/$/, ''),
   })
 })
 
@@ -148,7 +152,10 @@ export const sendCommand = onCall({ region: REGION }, async (request) => {
   const role = (grill.data()?.members ?? {})[uid] as Role | undefined
   const v = validateCommand(name, request.data?.args, role)
   if (!v.ok) throw new HttpsError('permission-denied', v.error)
-  if (!grill.data()?.cloudControl && name !== 'hopper.check') {
+  // The Pi mirrors its local cloud settings; the bridge enforces the same flag itself.
+  const settings = await db.collection('grills').doc(grillId).collection('settings').doc('current').get()
+  const cloud = (settings.data()?.cloud ?? {}) as { control_enabled?: boolean }
+  if (!cloud.control_enabled) {
     throw new HttpsError('failed-precondition', 'Cloud control is switched off on this grill')
   }
   const cmdRef = rtdb.ref(`grills/${grillId}/commands`).push()

@@ -250,6 +250,13 @@ def send_notifications(notify_event, label='Probe', target=0):
 		query_args = {"value1": 'Unknown Notification issue'}
 		eventLogger.error(body_message)
 
+	# FireAI: publish every notification to the Redis stream consumed by the cloud bridge / local push.
+	try:
+		from core.events import publish_notification
+		publish_notification(notify_event, title_message, body_message, label=label, target=target, channel=channel)
+	except Exception:
+		eventLogger.debug('Failed to publish notification event to stream', exc_info=True)
+
 	if settings['notify_services']['apprise']['locations'] != '' and settings['notify_services']['apprise']['enabled']:
 		_send_apprise_notifications(settings, title_message, body_message)
 	if settings['notify_services']['ifttt']['APIKey'] != '' and settings['notify_services']['ifttt']['enabled']:

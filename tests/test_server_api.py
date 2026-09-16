@@ -149,3 +149,51 @@ class TestWebSocket:
 			assert first['type'] == 'state' and first['data']['mode'] == 'Stop'
 			ws.send_text('ping')
 			assert ws.receive_json()['type'] == 'pong'
+
+
+class TestCloud:
+	def test_status_unpaired(self, authed, monkeypatch, tmp_path):
+		from server import cloud
+
+		monkeypatch.setattr(cloud, 'DEFAULT_PATH', tmp_path / 'creds.json')
+		r = authed.get('/api/v1/cloud/status')
+		assert r.status_code == 200
+		body = r.json()
+		assert body['paired'] is False and body['control_enabled'] is False and body['pairing'] is None
+
+	def test_pair_start_and_cancel(self, authed, monkeypatch, tmp_path):
+		from server import cloud
+
+		monkeypatch.setattr(cloud, 'DEFAULT_PATH', tmp_path / 'creds.json')
+
+		class FakePairing:
+			def __init__(self, *a, **k):
+				self.state = None
+
+			def start(self):
+				from bridge.pairing import PairingState
+
+				self.state = PairingState('123456', 's' * 40, 0, 10**12)
+				return self.state
+
+			def poll(self):
+				return self.state
+
+		monkeypatch.setattr(cloud, 'Pairing', FakePairing)
+		r = authed.post('/api/v1/cloud/pair')
+		assert r.status_code == 202 and r.json()['code'] == '123456'
+		assert authed.get('/api/v1/cloud/status').json()['pairing']['status'] == 'pending'
+		assert authed.delete('/api/v1/cloud/pair').status_code == 200
+		assert authed.get('/api/v1/cloud/status').json()['pairing'] is None
+
+	def test_unpair_removes_credentials(self, authed, monkeypatch, tmp_path):
+		from bridge.credentials import Credentials
+		from server import cloud
+
+		path = tmp_path / 'creds.json'
+		Credentials('g1', 'p', 'k', 'https://db', 'rt').save(path)
+		monkeypatch.setattr(cloud, 'DEFAULT_PATH', path)
+		assert authed.get('/api/v1/cloud/status').json()['paired'] is True
+		assert authed.post('/api/v1/cloud/pair').status_code == 409
+		assert authed.post('/api/v1/cloud/unpair').status_code == 200
+		assert not path.exists()

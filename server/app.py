@@ -30,37 +30,16 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from common import common
 from core import commands as cmdreg
 from core import state as core_state
 from core.settings_schema import redact
-from server import auth
+from server import auth, cloud
+from server.deps import current_principal, require_admin
 
 API_PREFIX = '/api/v1'
-_bearer = HTTPBearer(auto_error=False)
-
-
-# --------------------------------------------------------------------------
-# Auth dependencies
-# --------------------------------------------------------------------------
-
-
-def current_principal(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> auth.Principal:
-	if not auth.auth_disabled() and not auth.password_is_set():
-		raise HTTPException(status.HTTP_403_FORBIDDEN, detail={'code': 'setup_required', 'message': 'Set the admin password first.'})
-	principal = auth.authenticate(creds.credentials if creds else None)
-	if principal is None:
-		raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={'code': 'unauthorized', 'message': 'Sign in required.'})
-	return principal
-
-
-def require_admin(p: auth.Principal = Depends(current_principal)) -> auth.Principal:
-	if p.role != 'admin':
-		raise HTTPException(status.HTTP_403_FORBIDDEN, detail={'code': 'forbidden', 'message': 'Admin only.'})
-	return p
 
 
 # --------------------------------------------------------------------------
@@ -169,6 +148,7 @@ def create_app(*, hub: StateHub | None = None) -> FastAPI:
 
 	app = FastAPI(title='FireAI Local API', version='2.0.0a0', lifespan=lifespan, docs_url='/docs', openapi_url='/openapi.json')
 	app.state.hub = hub
+	app.include_router(cloud.router)
 	app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
 					   allow_methods=['*'], allow_headers=['*'])
 

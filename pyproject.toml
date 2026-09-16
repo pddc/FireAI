@@ -38,7 +38,7 @@ server = [
 ]
 # Cloud bridge
 bridge = [
-    "firebase-admin>=6.6",
+    "httpx>=0.27",
 ]
 # Only installable on a Raspberry Pi
 pi = [
