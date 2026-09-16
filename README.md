@@ -1,4 +1,4 @@
-# FireAI
+# FireAI --- 100% not TESTED . Use only if you want to contribute to the testing
 
 **A modern, cloud-connected controller for pellet smokers.** FireAI is a hard fork of the excellent
 [PiFire](https://github.com/nebhead/PiFire) project: the proven control loop, PID controllers,
