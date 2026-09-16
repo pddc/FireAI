@@ -6,6 +6,7 @@ import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { PlaceholderPage } from '@/features/PlaceholderPage'
 import { LoginPage, SetupPage } from '@/features/auth/AuthPages'
 import { SettingsIndexPage } from '@/features/settings/SettingsIndexPage'
+import { SettingsSectionPage } from '@/features/settings/SettingsSectionPage'
 import { useAuth } from '@/stores/auth'
 import { useGrill } from '@/stores/grill'
 import { LocalSource } from '@/lib/source/LocalSource'
@@ -61,10 +62,13 @@ const shellChildren: RouteObject[] = [
   { path: 'cooks', element: <PlaceholderPage title="Cooks" /> },
   { path: 'settings', element: <SettingsIndexPage /> },
   ...(IS_CLOUD ? [] : [{ path: 'settings/cloud', element: lazyEl(<CloudPage />) }]),
-  { path: 'settings/*', element: <PlaceholderPage title="Settings" /> },
+  { path: 'settings/:section', element: <SettingsSectionPage /> },
 ]
 
+const DebugWidgets = lazy(() => import('@/features/DebugWidgets').then((m) => ({ default: m.DebugWidgets })))
+
 const localRoutes: RouteObject[] = [
+  ...(import.meta.env.DEV ? [{ path: '/debug', element: lazyEl(<DebugWidgets />) }] : []),
   { path: '/setup', element: <SetupPage /> },
   { path: '/login', element: <LoginPage /> },
   {

@@ -6,6 +6,7 @@ const SECTIONS = [
   { to: 'cloud', label: 'Cloud', desc: 'Pairing, remote control, monitoring', icon: Cloud, localOnly: true },
   { to: 'general', label: 'General', desc: 'Name, units, theme, dashboard', icon: Wrench },
   { to: 'control', label: 'Control', desc: 'Startup, smoke, hold, shutdown, PID', icon: Gauge },
+  { to: 'pellets', label: 'Pellet level', desc: 'Hopper sensor, low-pellet warnings', icon: Thermometer },
   { to: 'probes', label: 'Probes', desc: 'Devices, profiles, tuning', icon: Thermometer },
   { to: 'notifications', label: 'Notifications', desc: 'Pushover, Apprise, MQTT, WLED…', icon: Bell },
   { to: 'safety', label: 'Safety', desc: 'Limits, re-ignite, manual overrides', icon: Shield },
