@@ -1157,9 +1157,11 @@ def read_settings(filename='settings.json', init=False, retry_count=0):
 			settings = downgrade_settings(settings, settings_default)
 			update_settings = True
 		elif (settings_default['versions']['server'] == settings['versions']['server']) and (settings['versions']['build'] <= settings_default['versions']['build']):
-			''' Minor Upgrade Path '''
+			''' Minor Upgrade Path (same server version: runs on every control start, so it must not re-arm the release notes) '''
 			prev_ver = semantic_ver_to_list(settings['versions']['server'])
+			show_notes = settings['globals'].get('updated_message', False)
 			settings = upgrade_settings(prev_ver, settings, settings_default)
+			settings['globals']['updated_message'] = show_notes
 			settings['versions'] = settings_default['versions']
 			update_settings = True
 

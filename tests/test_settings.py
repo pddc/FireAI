@@ -64,3 +64,18 @@ def test_semantic_version_compare():
 	assert common.semantic_ver_is_lower('1.9.0', '1.10.0')
 	assert not common.semantic_ver_is_lower('1.10.0', '1.9.0')
 	assert not common.semantic_ver_is_lower('1.10.0', '1.10.0')
+
+
+def test_release_notes_flag_only_on_real_upgrades(settings):
+	"""Every control start runs the same-version 'minor upgrade' path; it must not re-arm the what's-new dialog."""
+	assert common.read_settings(init=True)['globals']['updated_message'] is False
+	assert common.read_settings(init=True)['globals']['updated_message'] is False
+	s = common.read_settings()
+	s['versions']['server'] = '1.10.10'
+	common.write_settings(s)
+	assert common.read_settings(init=True)['globals']['updated_message'] is True
+	# dismissed by the app, and it stays dismissed on the next start
+	s = common.read_settings()
+	s['globals']['updated_message'] = False
+	common.write_settings(s)
+	assert common.read_settings(init=True)['globals']['updated_message'] is False

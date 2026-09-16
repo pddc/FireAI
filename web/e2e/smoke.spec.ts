@@ -5,6 +5,9 @@ test.describe('FireAI smoke', () => {
     await page.goto('/')
     await expect(page.getByRole('link', { name: 'Dashboard' }).first()).toBeVisible()
     await expect(page.getByText(/Stopped|Smoking|Holding|Starting up|Shutting down|Monitoring/).first()).toBeVisible({ timeout: 15_000 })
+    // A freshly upgraded grill shows the release notes once; dismiss them so they don't shadow the controls.
+    const gotIt = page.getByRole('button', { name: 'Got it' })
+    if (await gotIt.isVisible().catch(() => false)) await gotIt.click()
     // Probe cards render gauges
     await expect(page.getByText('Grill', { exact: true })).toBeVisible()
     // Start a cook if stopped
