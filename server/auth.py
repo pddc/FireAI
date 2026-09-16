@@ -13,6 +13,8 @@ Set ``FIREAI_AUTH_DISABLED=1`` to skip all of this in local development.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
 import secrets
 import time
@@ -104,12 +106,69 @@ def verify_token(token: str) -> Principal | None:
 verify_firebase_id_token = None  # type: ignore[assignment]
 
 
+# --------------------------------------------------------------------------
+# API keys: long-lived credentials for integrations (Home Assistant, Node-RED,
+# the PiFire Android app) that cannot run the password login flow. Only the
+# SHA-256 of a key is stored; the key itself is shown once at creation.
+# --------------------------------------------------------------------------
+
+API_KEY_PREFIX = 'fireai_'
+
+
+def _key_hash(key: str) -> str:
+	return hashlib.sha256(key.encode()).hexdigest()
+
+
+def list_api_keys(settings: dict | None = None) -> list[dict]:
+	settings = settings or common.read_settings()
+	return [{k: v for k, v in entry.items() if k != 'hash'} for entry in _auth_block(settings).get('api_keys', [])]
+
+
+def create_api_key(name: str, role: str = 'operator') -> tuple[str, dict]:
+	"""Returns (plain key, public record). The plain key is never stored."""
+	if role not in ('admin', 'operator', 'viewer'):
+		raise ValueError('role must be admin, operator or viewer')
+	settings = common.read_settings()
+	key = API_KEY_PREFIX + secrets.token_urlsafe(30)
+	entry = {'id': secrets.token_hex(4), 'name': (name or 'API key')[:60], 'role': role,
+			 'created': time.strftime('%Y-%m-%d %H:%M'), 'last_used': None, 'hash': _key_hash(key)}
+	_auth_block(settings).setdefault('api_keys', []).append(entry)
+	common.write_settings(settings)
+	return key, {k: v for k, v in entry.items() if k != 'hash'}
+
+
+def delete_api_key(key_id: str) -> bool:
+	settings = common.read_settings()
+	keys = _auth_block(settings).get('api_keys', [])
+	keep = [k for k in keys if k.get('id') != key_id]
+	if len(keep) == len(keys):
+		return False
+	_auth_block(settings)['api_keys'] = keep
+	common.write_settings(settings)
+	return True
+
+
+def verify_api_key(key: str) -> Principal | None:
+	if not key or not key.startswith(API_KEY_PREFIX):
+		return None
+	digest = _key_hash(key)
+	settings = common.read_settings()
+	for entry in _auth_block(settings).get('api_keys', []):
+		if hmac.compare_digest(entry.get('hash', ''), digest):
+			today = time.strftime('%Y-%m-%d')
+			if entry.get('last_used') != today:
+				entry['last_used'] = today
+				common.write_settings(settings)
+			return Principal(uid=f"key:{entry['id']}", role=entry.get('role', 'operator'), via='api_key')
+	return None
+
+
 def authenticate(token: str | None) -> Principal | None:
 	if auth_disabled():
 		return Principal(uid='dev', role='admin', via='disabled')
 	if not token:
 		return None
-	p = verify_token(token)
+	p = verify_api_key(token) if token.startswith(API_KEY_PREFIX) else verify_token(token)
 	if p is None and verify_firebase_id_token is not None:
 		p = verify_firebase_id_token(token)
 	return p

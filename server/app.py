@@ -36,7 +36,7 @@ from common import common
 from core import commands as cmdreg
 from core import state as core_state
 from core.settings_schema import redact
-from server import auth, cloud, hardware, library, probes
+from server import auth, cloud, hardware, legacy, library, probes
 from server.deps import current_principal, require_admin
 
 API_PREFIX = '/api/v1'
@@ -152,6 +152,7 @@ def create_app(*, hub: StateHub | None = None) -> FastAPI:
 	app.include_router(probes.router)
 	app.include_router(library.router)
 	app.include_router(hardware.router)
+	app.include_router(legacy.keys_router)
 	app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
 					   allow_methods=['*'], allow_headers=['*'])
 
@@ -273,6 +274,9 @@ def create_app(*, hub: StateHub | None = None) -> FastAPI:
 		except Exception:
 			info = []
 		return {'devices': redact({'d': info})['d']}
+
+	# PiFire-compatible API last: its catch-all /api/{action}/... must not shadow any /api/v1 route above.
+	app.include_router(legacy.router)
 
 	return app
 

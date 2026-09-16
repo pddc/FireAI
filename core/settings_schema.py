@@ -30,6 +30,8 @@ def is_secret_key(key: str) -> bool:
 
 
 def redact(settings: Mapping) -> dict:
+	"""Secrets become the sentinel; the local auth block (password hash, JWT secret, API key hashes) is dropped
+	entirely because no client edits it and even hashed material should not leave the Pi."""
 	def walk(node):
 		if isinstance(node, Mapping):
 			out = {}
@@ -43,7 +45,10 @@ def redact(settings: Mapping) -> dict:
 			return [walk(v) for v in node]
 		return node
 
-	return walk(settings)
+	out = walk(settings)
+	if isinstance(out.get('server'), dict):
+		out['server'] = {k: v for k, v in out['server'].items() if k != 'auth'}
+	return out
 
 
 def _flatten_changes(base: Mapping, patch: Mapping, prefix: str = '') -> list[str]:

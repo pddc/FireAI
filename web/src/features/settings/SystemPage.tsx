@@ -11,6 +11,7 @@ import { useCommand } from '@/hooks/useCommand'
 import { useGrillState } from '@/stores/grill'
 import { fmtDuration } from '@/lib/format'
 import { SettingsSectionInline } from './SettingsSectionInline'
+import { ApiKeysCard } from './ApiKeysCard'
 
 interface UpdateCheck {
   current: string
@@ -155,6 +156,8 @@ export function SystemPage() {
           <input ref={fileRef} type="file" accept=".zip,.json" className="hidden" onChange={(e) => e.target.files?.[0] && restore.mutate(e.target.files[0])} />
         </CardContent>
       </Card>
+
+      <ApiKeysCard />
 
       <Card>
         <CardHeader className="pb-2">

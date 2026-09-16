@@ -81,7 +81,7 @@ class TestState:
 		common.write_settings(s)
 		out = authed.get('/api/v1/settings').json()
 		assert out['notify_services']['pushover']['API_key'] == '***'
-		assert 'password_hash' not in str(out['server']['auth']) or out['server']['auth']['password_hash'] == '***'
+		assert 'auth' not in out.get('server', {})  # the whole local auth block stays on the Pi
 
 	def test_patch_settings_keeps_secret_when_sentinel(self, authed):
 		s = common.read_settings()
