@@ -140,8 +140,15 @@ class GrillPlatform:
 			'result': 'OK',
 			'message': 'Supported commands listed in "data".',
 			'data': {'supported_cmds': ['supported_commands', 'check_alive', 'check_throttled', 'check_cpu_temp',
-									   'check_wifi_quality', 'os_info', 'network_info', 'hardware_info', 'sim_state']},
+									   'check_wifi_quality', 'os_info', 'network_info', 'hardware_info', 'sim_state', 'scan_bluetooth']},
 		}
+
+	def scan_bluetooth(self, arglist):
+		'''A pretend scan so the probe settings UI can be exercised without an adapter.'''
+		return {'result': 'OK', 'message': 'Bluetooth scan completed successfully.', 'data': {'bt_devices': [
+			{'name': 'iBBQ', 'hw_id': 'aa:bb:cc:dd:ee:01', 'info': 'simulated'},
+			{'name': 'MEATER', 'hw_id': 'aa:bb:cc:dd:ee:02', 'info': 'simulated'},
+		]}}
 
 	def check_alive(self, arglist):
 		return {'result': 'OK', 'message': 'The control script is running.', 'data': {}}

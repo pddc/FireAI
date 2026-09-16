@@ -1,5 +1,6 @@
 """Hardware selection (wizard replacement) and probe tuner."""
 import pytest
+from fastapi.testclient import TestClient
 
 from common import common
 from core import hardware, tuner
@@ -106,3 +107,49 @@ def test_endpoints(settings, control):
 		assert c.post('/api/v1/tuner/auto/sample', json={'probe': 'Probe1', 'reference': 'Grill'}, headers=h).status_code == 200
 		assert c.get('/api/v1/tuner/tr', headers=h).json()['tuning_mode'] in (True, False)
 		assert c.post('/api/v1/tuner/auto/stop', headers=h).status_code == 200
+
+
+class TestBluetooth:
+	def test_scan_through_control_queue(self, sim_settings, control, monkeypatch):
+		from common.redis_queue import RedisQueue
+		from core import bluetooth
+		from grillplat.simulator import GrillPlatform
+		import control as ctl
+
+		# The control loop drains control:systemq; emulate it right after the API pushes the command.
+		real_push = RedisQueue.push
+
+		def push_and_serve(self_, item):
+			real_push(self_, item)
+			if self_.hashname == 'control:systemq':
+				ctl._process_system_commands(GrillPlatform({}))
+
+		monkeypatch.setattr(RedisQueue, 'push', push_and_serve)
+		r = bluetooth.scan(timeout=5)
+		assert r['error'] is None
+		assert r['devices'][0] == {'name': 'iBBQ', 'address': 'aa:bb:cc:dd:ee:01', 'info': 'simulated'}
+
+	def test_scan_times_out_without_control(self, settings, control):
+		from core import bluetooth
+
+		r = bluetooth.scan(timeout=0.2)
+		assert r['devices'] == [] and 'could not be found' in r['error']
+
+	def test_diagnostics_never_raise(self, settings):
+		from core import bluetooth
+
+		sections = bluetooth.diagnostics()
+		assert sections[0]['title'] == 'Python' and 'bleak' in sections[0]['output']
+		text = bluetooth.diagnostics_text(sections)
+		assert 'FireAI Bluetooth diagnostics' in text and 'Python' in text
+
+	def test_endpoints(self, settings, control):
+		from server.app import create_app
+
+		with TestClient(create_app()) as c:
+			tok = c.post('/api/v1/auth/setup', json={'password': 'correct horse'}).json()['token']
+			h = {'Authorization': f'Bearer {tok}'}
+			r = c.get('/api/v1/bluetooth/diagnostics', headers=h)
+			assert r.status_code == 200 and r.json()['sections'][0]['title'] == 'Python'
+			r = c.get('/api/v1/bluetooth/diagnostics?format=text', headers=h)
+			assert r.headers['content-type'].startswith('text/plain')

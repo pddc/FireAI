@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { api, get, post } from '@/lib/api'
 import { useGrill } from '@/stores/grill'
+import { BtAddressField } from './Bluetooth'
 
 interface ModuleOpt {
   label: string
@@ -93,6 +94,8 @@ function DeviceConfigFields({ meta, config, onChange, probeLabels }: { meta: Mod
             )
           } else if (o.type === 'int' || o.type === 'float') {
             control = <Input id={id} type="number" min={o.min} max={o.max} step={o.step ?? (o.type === 'int' ? 1 : 'any')} value={String(v ?? '')} onChange={(e) => set(o.type === 'int' ? parseInt(e.target.value || '0', 10) : parseFloat(e.target.value || '0'))} className="w-full sm:w-40" />
+          } else if (o.type === 'bt_address') {
+            control = <BtAddressField id={id} value={String(v ?? '')} onChange={(nv) => set(nv)} />
           } else if (o.type === 'password') {
             control = <Input id={id} type="password" value={String(v ?? '')} onChange={(e) => set(e.target.value)} placeholder={v === '***' ? 'saved' : ''} className="w-full sm:w-64" />
           } else if (o.type === 'bool') {

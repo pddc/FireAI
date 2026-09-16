@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from common import common
-from core import hardware, tuner
+from core import bluetooth, hardware, tuner
 from core import state as core_state
 from server import auth
 from server.deps import current_principal, require_admin
@@ -88,3 +89,21 @@ def tuner_auto_sample(body: AutotuneSample, _: auth.Principal = Depends(current_
 	units = common.read_settings()['globals']['units']
 	reading = tuner.record_sample(body.probe, body.reference)
 	return {**reading, **tuner.autotune_status(units)}
+
+
+# ----- bluetooth ---------------------------------------------------------
+
+
+@router.post('/bluetooth/scan')
+async def bluetooth_scan(_: auth.Principal = Depends(current_principal)):
+	"""Scan for BLE thermometers via the control process (takes ~6 s)."""
+	return await run_in_threadpool(bluetooth.scan)
+
+
+@router.get('/bluetooth/diagnostics')
+async def bluetooth_diagnostics(format: str = 'json', _: auth.Principal = Depends(current_principal)):
+	sections = await run_in_threadpool(bluetooth.diagnostics)
+	if format == 'text':
+		return Response(content=bluetooth.diagnostics_text(sections), media_type='text/plain',
+						headers={'Content-Disposition': 'attachment; filename="fireai-bluetooth-diagnostics.txt"'})
+	return {'sections': sections}
