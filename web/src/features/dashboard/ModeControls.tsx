@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useCommand } from '@/hooks/useCommand'
+import { useConnection, useGrill } from '@/stores/grill'
 import { cn } from '@/lib/utils'
 import { fmtTemp } from '@/lib/format'
 import type { GrillState } from '@/types/state'
@@ -44,10 +45,14 @@ export function ModeControls({ state }: Props) {
   const [primeAmount, setPrimeAmount] = useState(10)
   const [primeStart, setPrimeStart] = useState(true)
 
+  const connection = useConnection()
+  const sourceKind = useGrill((s) => s.source?.kind)
   const mode = state.mode
   const stopped = mode === 'Stop' || mode === 'Error'
   const cooking = ['Startup', 'Reignite', 'Smoke', 'Hold'].includes(mode)
-  const isBusy = !!busy
+  const offline = connection === 'offline'
+  const remoteLocked = sourceKind === 'cloud' && state.cloud_control === false
+  const isBusy = !!busy || offline || remoteLocked
 
   const openHold = () => {
     setHoldTemp(state.setpoint || (units === 'F' ? 225 : 107))
@@ -117,10 +122,14 @@ export function ModeControls({ state }: Props) {
             </Button>
           </div>
         )}
-        {isBusy && (
+        {!!busy && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3 animate-spin" /> sending…
           </div>
+        )}
+        {offline && <p className="text-xs text-muted-foreground">Controls are disabled while the grill is offline.</p>}
+        {!offline && remoteLocked && (
+          <p className="text-xs text-muted-foreground">Remote control is switched off on the grill. Enable it under Settings → Cloud on the grill itself.</p>
         )}
       </CardContent>
 

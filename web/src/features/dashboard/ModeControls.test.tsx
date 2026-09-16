@@ -40,3 +40,21 @@ describe('ModeControls', () => {
     expect(screen.getByText('Re-ignite')).toBeInTheDocument()
   })
 })
+
+describe('ModeControls gating', () => {
+  it('disables controls when offline', () => {
+    useGrill.setState({ command, status: 'offline' })
+    render(<ModeControls state={makeState({ mode: 'Smoke' })} />)
+    expect(screen.getByText('Smoke').closest('button')).toBeDisabled()
+    expect(screen.getByText(/disabled while the grill is offline/)).toBeInTheDocument()
+    useGrill.setState({ status: 'live' })
+  })
+
+  it('disables controls when remote control is off in cloud mode', () => {
+    useGrill.setState({ command, status: 'live', source: { kind: 'cloud' } as never })
+    render(<ModeControls state={makeState({ mode: 'Smoke', cloud_control: false })} />)
+    expect(screen.getByText('Smoke').closest('button')).toBeDisabled()
+    expect(screen.getByText(/Remote control is switched off/)).toBeInTheDocument()
+    useGrill.setState({ source: null })
+  })
+})

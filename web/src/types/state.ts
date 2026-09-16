@@ -101,6 +101,8 @@ export interface GrillState {
   manual: { change?: string | null; output?: boolean | null; pwm?: number }
   errors: string[]
   warnings: string[]
+  /** Cloud mode only: whether the grill currently accepts remote commands (from presence). */
+  cloud_control?: boolean
 }
 
 export interface CommandResult {
