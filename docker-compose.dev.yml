@@ -1,0 +1,8 @@
+# Multi-process development layout: real Redis + control + API as separate
+# processes, mirroring the Pi. For single-process dev without Docker use
+#   python scripts/simulate.py --with-server
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["6379:6379"]
