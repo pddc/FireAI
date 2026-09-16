@@ -70,3 +70,50 @@ jobs:
         working-directory: firebase/rules-tests
       - run: npx firebase-tools emulators:exec --only database,firestore --project fireai-dev "cd rules-tests && npx vitest run"
         working-directory: firebase
+
+  e2e:
+    name: E2E (Playwright vs simulator)
+    runs-on: ubuntu-latest
+    needs: [python, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Python deps
+        run: |
+          uv venv .venv
+          uv pip install -e ".[dev,server,bridge]"
+      - name: Start simulator + API
+        env:
+          FIREAI_FAKE_REDIS: "1"
+          FIREAI_AUTH_DISABLED: "1"
+        run: |
+          nohup .venv/bin/python scripts/simulate.py --with-server --speed 10 --port 8080 --workdir .sim > sim.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
+      - name: Install web deps + browsers
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Start dev server
+        working-directory: web
+        run: |
+          nohup npm run dev -- --host 127.0.0.1 > vite.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:5173/ > /dev/null && break; sleep 1; done
+      - name: Run Playwright
+        working-directory: web
+        env:
+          E2E_BASE_URL: http://127.0.0.1:5173
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: web/test-results
