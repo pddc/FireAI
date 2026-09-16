@@ -237,6 +237,12 @@ def create_app(*, hub: StateHub | None = None) -> FastAPI:
 	def get_settings(_: auth.Principal = Depends(current_principal)):
 		return redact(common.read_settings())
 
+	@app.get(f'{API_PREFIX}/settings/schema', tags=['settings'])
+	def get_settings_schema(_: auth.Principal = Depends(current_principal)):
+		from core.settings_ui import build_schema
+
+		return build_schema(common.read_settings(), local=True)
+
 	@app.patch(f'{API_PREFIX}/settings', tags=['settings'])
 	def patch_settings(body: SettingsPatch, _: auth.Principal = Depends(require_admin)):
 		result = cmdreg.execute('settings.patch', {'patch': body.patch}, origin='api')

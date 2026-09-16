@@ -140,6 +140,12 @@ class Bridge:
 		doc = redact(settings)
 		doc.pop('server', None)  # local auth block never leaves the Pi, even redacted
 		self.fs.set(self.path('settings', 'current'), {**doc, 'mirroredAt': int(self.clock() * 1000)})
+		try:
+			from core.settings_ui import build_schema
+
+			self.fs.set(self.path('settings', 'schema'), build_schema(settings, local=False))
+		except Exception as e:
+			self.record_error(f'schema mirror failed: {e}')
 		self._settings_mtime = mtime
 		return True
 
